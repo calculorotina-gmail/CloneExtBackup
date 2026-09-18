@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Chrome Extension Backup Pro",
+  "version": "2.0.0",
+  "description": "Sistema profissional de backup e recuperação local dos ficheiros reais das extensões Google Chrome para Windows.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAy0MmhbXfnhrSZ6E+BqX/594IX8IYSYuBMwoCb9Rt8J6GHN2FzHSSHnhfPOh9CRMj8SZRGSuWvHdbXXSbW+pWifTkDfQjr9hEOGW0OgR/SlzBnUy3rHyX+9QG4Q9EeotfYaFA2JlWL6yFuS+dXaHUBWJ5GDwirb+sASFxvSnT3BFs1p/QJnK3+lPK6dVqK0GhaV35jT1SYhgQBKxKOK9UhEIU56dScVGMxxYv0J5+BjSl02TBbFYWmyb8LRCZkcX0Vhbr+6rMCeaL7ES+54zvh4/l3YT2z7K01ayJgSVOP5zfJDToMmowWQc18RBEAMWHOtgXb030s3MpqZHAnBI7oQIDAQAB",
+  "permissions": [
+    "nativeMessaging",
+    "storage",
+    "management",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [],
+  "background": {
+    "service_worker": "background/service_worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Chrome Extension Backup Pro",
+    "default_popup": "ui/index.html",
+    "default_icon": {
+      "16": "ui/icons/icon16.png",
+      "32": "ui/icons/icon32.png",
+      "48": "ui/icons/icon48.png",
+      "128": "ui/icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "ui/icons/icon16.png",
+    "32": "ui/icons/icon32.png",
+    "48": "ui/icons/icon48.png",
+    "128": "ui/icons/icon128.png"
+  },
+  "minimum_chrome_version": "100"
+}

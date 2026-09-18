@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chrome Extension Backup Pro</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="icons/icon48.png" alt="Logo" class="brand-icon">
+        <div class="brand-text">
+          <h1>Extension Backup</h1>
+          <span class="badge-pro" id="header-license-badge">PREMIUM PRO</span>
+        </div>
+      </div>
+
+      <ul class="nav-menu">
+        <li class="nav-item active" data-view="dashboard">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </li>
+        <li class="nav-item" data-view="extensions">
+          <span class="nav-icon">🧩</span>
+          <span>Extensões</span>
+          <span class="nav-badge" id="nav-ext-count">35</span>
+        </li>
+        <li class="nav-item" data-view="backups">
+          <span class="nav-icon">💾</span>
+          <span>Backups</span>
+        </li>
+        <li class="nav-item" data-view="restore">
+          <span class="nav-icon">🔄</span>
+          <span>Restaurar</span>
+        </li>
+        <li class="nav-item" data-view="compare">
+          <span class="nav-icon">⚖️</span>
+          <span>Comparar</span>
+        </li>
+        <li class="nav-item" data-view="scheduler">
+          <span class="nav-icon">⏱️</span>
+          <span>Agendamentos</span>
+        </li>
+        <li class="nav-item" data-view="history">
+          <span class="nav-icon">📜</span>
+          <span>Histórico</span>
+        </li>
+        <li class="nav-item" data-view="reports">
+          <span class="nav-icon">📑</span>
+          <span>Relatórios</span>
+        </li>
+        <li class="nav-item" data-view="settings">
+          <span class="nav-icon">⚙️</span>
+          <span>Definições</span>
+        </li>
+        <li class="nav-item" data-view="license">
+          <span class="nav-icon">💎</span>
+          <span>Licença</span>
+        </li>
+        <li class="nav-item" data-view="about">
+          <span class="nav-icon">ℹ️</span>
+          <span>Sobre</span>
+        </li>
+        <li class="nav-item" data-view="privacy">
+          <span class="nav-icon">🔒</span>
+          <span>Privacidade</span>
+        </li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <div class="host-status">
+          <span class="status-dot" id="host-status-dot"></span>
+          <span id="host-status-label" style="font-weight: 600;">A verificar Host...</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Wrapper -->
+    <div class="main-wrapper">
+      <!-- Top Header -->
+      <header class="top-header">
+        <div class="header-title">
+          <h2 id="page-title">Painel de Controlo (Dashboard)</h2>
+          <p id="page-description">Visão geral e métricas de cópias de segurança locais</p>
+        </div>
+
+        <div class="header-controls">
+          <div class="profile-select-wrapper">
+            <label for="header-profile-select">Perfil:</label>
+            <select id="header-profile-select" class="profile-select">
+              <option value="Default">Pessoa 1 (Default)</option>
+            </select>
+          </div>
+
+          <button class="btn-icon" id="btn-toggle-theme" title="Alternar Tema Claro / Escuro">🌓</button>
+          <button class="btn-icon" id="btn-expand-tab" title="Abrir em Separador Completo">⤢</button>
+        </div>
+      </header>
+
+      <!-- Content Views Area -->
+      <main class="content-area">
+
+        <!-- VIEW 1: DASHBOARD -->
+        <section class="view-section active" id="view-dashboard">
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-title">EXTENSÕES</div>
+              <div class="kpi-value" id="kpi-installed">0</div>
+              <div class="kpi-subtitle">Instaladas no perfil</div>
+            </div>
+            <div class="kpi-card kpi-success">
+              <div class="kpi-title">BACKUPS VÁLIDOS</div>
+              <div class="kpi-value" id="kpi-valid-backups">0</div>
+              <div class="kpi-subtitle">Integridade 100% verificada</div>
+            </div>
+            <div class="kpi-card kpi-warning">
+              <div class="kpi-title">SEM BACKUP</div>
+              <div class="kpi-value" id="kpi-without-backup">0</div>
+              <div class="kpi-subtitle">Ainda não salvaguardadas</div>
+            </div>
+            <div class="kpi-card kpi-purple">
+              <div class="kpi-title">ESPAÇO UTILIZADO</div>
+              <div class="kpi-value" id="kpi-used-space">0 B</div>
+              <div class="kpi-subtitle">Arquivos .crxbackup</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-title">ÚLTIMO BACKUP</div>
+              <div class="kpi-value" style="font-size: 18px;" id="kpi-last-backup">-</div>
+              <div class="kpi-subtitle">Data/hora da última cópia</div>
+            </div>
+            <div class="kpi-card kpi-success">
+              <div class="kpi-title">INTEGRIDADE</div>
+              <div class="kpi-value" id="kpi-integrity">100%</div>
+              <div class="kpi-subtitle">Validação SHA-256</div>
+            </div>
+          </div>
+
+          <h3 style="margin-bottom: 12px; font-size: 15px;">Ações Rápidas</h3>
+          <div class="actions-grid">
+            <div class="action-card" id="btn-quick-backup-active">
+              <div class="action-icon">🚀</div>
+              <div class="action-info">
+                <h3>Backup de Todas as Ativas</h3>
+                <p>Criar cópia de segurança imediata de todas as extensões em execução no perfil atual.</p>
+              </div>
+            </div>
+            <div class="action-card" id="btn-quick-validate">
+              <div class="action-icon">🛡️</div>
+              <div class="action-info">
+                <h3>Validar Catálogo de Backups</h3>
+                <p>Verificar as assinaturas criptográficas SHA-256 de todas as cópias existentes.</p>
+              </div>
+            </div>
+            <div class="action-card" id="btn-quick-scheduler">
+              <div class="action-icon">⏱️</div>
+              <div class="action-info">
+                <h3>Configurar Agendamentos</h3>
+                <p>Automatizar rotinas de backup diárias ou semanais via Windows Task Scheduler.</p>
+              </div>
+            </div>
+            <div class="action-card" id="btn-quick-find-backups">
+              <div class="action-icon">📂</div>
+              <div class="action-info">
+                <h3>Encontrar Backups</h3>
+                <p>Pesquisar ficheiros .crxbackup numa unidade externa (HDD/SSD/USB) ou pasta de rede.</p>
+              </div>
+            </div>
+          </div>
+
+          <h3 style="margin-bottom: 12px; font-size: 15px;">Backups Recentes</h3>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Extensão</th>
+                  <th>Versão</th>
+                  <th>Perfil</th>
+                  <th>Tamanho</th>
+                  <th>Integridade</th>
+                </tr>
+              </thead>
+              <tbody id="dashboard-recent-tbody">
+                <tr><td colspan="5" style="text-align:center; padding: 20px;">A carregar dados...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- VIEW 2: EXTENSIONS -->
+        <section class="view-section" id="view-extensions">
+          <div class="toolbar">
+            <div class="search-box">
+              <span>🔍</span>
+              <input type="text" id="ext-search-input" placeholder="Pesquisar por nome, ID ou versão...">
+            </div>
+
+            <div class="filter-group">
+              <button class="filter-btn active" data-filter="all">Todas</button>
+              <button class="filter-btn" data-filter="with_backup">Com backup</button>
+              <button class="filter-btn" data-filter="without_backup">Sem backup</button>
+              <button class="filter-btn" data-filter="active">Ativas</button>
+              <button class="filter-btn" data-filter="disabled">Desativadas</button>
+            </div>
+
+            <button class="btn btn-primary" id="btn-bulk-backup" style="display:none;">Fazer Backup Selecionadas (0)</button>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width: 38px;">
+                    <input type="checkbox" id="ext-select-all">
+                  </th>
+                  <th>Extensão (Nome & ID)</th>
+                  <th>Versão</th>
+                  <th>Perfil</th>
+                  <th>Estado</th>
+                  <th>Último Backup</th>
+                  <th>Tamanho</th>
+                  <th>Integridade</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="extensions-tbody">
+                <tr><td colspan="9" style="text-align:center; padding: 24px;">A carregar extensões instaladas...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- VIEW 3: BACKUPS -->
+        <section class="view-section" id="view-backups">
+          <div class="toolbar">
+            <div class="search-box">
+              <span>🔍</span>
+              <input type="text" id="backups-search-input" placeholder="Filtrar arquivos de backup...">
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-secondary" id="btn-find-custom-backups">📂 Encontrar Backups (Unidade Externa)</button>
+              <button class="btn btn-primary" id="btn-refresh-backups">🔄 Atualizar Catálogo</button>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Arquivo / Extensão</th>
+                  <th>Versão</th>
+                  <th>Perfil Origem</th>
+                  <th>Tamanho</th>
+                  <th>Data do Backup</th>
+                  <th>Segurança</th>
+                  <th>Proteção</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="backups-tbody">
+                <tr><td colspan="8" style="text-align:center; padding: 24px;">A carregar catálogo de backups...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- VIEW 4: RESTORE -->
+        <section class="view-section" id="view-restore">
+          <div style="max-width: 780px;">
+            <!-- Chrome Running Warning Alert Banner -->
+            <div id="restore-chrome-warning" class="error-box" style="display: none; margin-bottom: 20px;">
+              <div class="error-code">AVISO DE PROCESSO EM EXECUÇÃO</div>
+              <p id="restore-chrome-text" style="margin-bottom: 10px;"></p>
+              <button class="btn btn-secondary btn-sm" id="btn-close-chrome-controlled">Fechar Chrome de Forma Controlada</button>
+            </div>
+
+            <div class="form-group">
+              <label for="restore-backup-select">1. Selecionar Arquivo de Backup (.crxbackup):</label>
+              <select id="restore-backup-select" class="form-control" style="font-weight: 600;"></select>
+            </div>
+
+            <div class="form-group">
+              <label for="restore-profile-select">2. Confirmar Perfil Chrome de Destino:</label>
+              <select id="restore-profile-select" class="form-control"></select>
+            </div>
+
+            <div class="form-group">
+              <label for="restore-mode-select">3. Método de Restauro:</label>
+              <select id="restore-mode-select" class="form-control">
+                <option value="direct_profile">Restauro Direto no Perfil Chrome (Requer Chrome Fechado, com Rollback Prévio Automático)</option>
+                <option value="unpacked_export">Exportar como Extensão Descompactada (Developer Mode / Load Unpacked - 100% Garantido)</option>
+              </select>
+              <small style="color: var(--text-muted); display: block; margin-top: 4px;">
+                Dica técnica: A opção 'Exportar Descompactada' permite carregar a extensão em <code>chrome://extensions</code> no Modo de Programador sem bloqueios da Chrome Web Store.
+              </small>
+            </div>
+
+            <div class="form-group">
+              <label for="restore-password-input">4. Palavra-passe de Desencriptação (apenas para backups protegidos por AES-256):</label>
+              <input type="password" id="restore-password-input" class="form-control" placeholder="Deixe em branco se o backup não for encriptado">
+            </div>
+
+            <div style="margin-top: 24px; display: flex; gap: 12px;">
+              <button class="btn btn-primary" id="btn-execute-restore">🔄 Iniciar Reposição / Restauro</button>
+            </div>
+
+            <!-- Post-Restore Report Box -->
+            <div id="restore-report-container" style="display: none; margin-top: 28px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 20px;">
+              <h3 style="color: var(--success); margin-bottom: 12px;">Relatório de Restauro Concluído</h3>
+              <p><strong>Extensão:</strong> <span id="restore-report-ext"></span></p>
+              <p><strong>Destino:</strong> <code id="restore-report-path" style="font-size: 11px;"></code></p>
+              <p><strong>Ficheiros:</strong> <span id="restore-report-files"></span></p>
+              <p><strong>Ponto de Rollback Criado:</strong> <span id="restore-report-rollback"></span></p>
+              <div style="margin-top: 10px; padding: 10px; background: var(--bg-tertiary); border-radius: var(--radius-sm); font-size: 12px;" id="restore-report-notice"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 5: COMPARE -->
+        <section class="view-section" id="view-compare">
+          <div style="max-width: 860px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px;">
+              <div class="form-group">
+                <label for="compare-item-a">Versão A (Backup Original / Anterior):</label>
+                <select id="compare-item-a" class="form-control"></select>
+              </div>
+              <div class="form-group">
+                <label for="compare-item-b">Versão B (Backup Recente / Nova Versão):</label>
+                <select id="compare-item-b" class="form-control"></select>
+              </div>
+            </div>
+
+            <button class="btn btn-primary" id="btn-run-comparison" style="margin-bottom: 24px;">⚖️ Comparar Ficheiros & Hashes</button>
+
+            <!-- Diff Metrics Grid -->
+            <div id="compare-summary" class="kpi-grid" style="display: none; margin-bottom: 20px;">
+              <div class="kpi-card kpi-success">
+                <div class="kpi-title">ADICIONADOS</div>
+                <div class="kpi-value" id="diff-added-count">0</div>
+              </div>
+              <div class="kpi-card kpi-danger">
+                <div class="kpi-title">REMOVIDOS</div>
+                <div class="kpi-value" id="diff-removed-count">0</div>
+              </div>
+              <div class="kpi-card kpi-warning">
+                <div class="kpi-title">ALTERADOS</div>
+                <div class="kpi-value" id="diff-modified-count">0</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-title">IGUAIS</div>
+                <div class="kpi-value" id="diff-identical-count">0</div>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Estado</th>
+                    <th>Ficheiro</th>
+                    <th>Tamanho</th>
+                    <th>Hash SHA-256</th>
+                  </tr>
+                </thead>
+                <tbody id="compare-diff-tbody">
+                  <tr><td colspan="4" style="text-align: center; padding: 24px; color: var(--text-muted);">Selecione duas versões acima e clique em 'Comparar'.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 6: SCHEDULER -->
+        <section class="view-section" id="view-scheduler">
+          <div style="max-width: 680px;">
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="sched-enabled" style="width: 18px; height: 18px;">
+                <span style="font-size: 15px; font-weight: 700;">Ativar Backup Automático Agendado</span>
+              </label>
+              <small style="color: var(--text-muted);">Executado pelo serviço Windows Task Scheduler de forma silenciosa e segura.</small>
+            </div>
+
+            <div class="form-group">
+              <label for="sched-freq">Frequência de Execução:</label>
+              <select id="sched-freq" class="form-control">
+                <option value="daily">Diário (Todos os dias no horário indicado)</option>
+                <option value="weekly">Semanal</option>
+                <option value="on_logon">Ao Iniciar Sessão no Windows (Logon)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="sched-time">Horário de Execução:</label>
+              <input type="time" id="sched-time" class="form-control" value="03:00">
+            </div>
+
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="sched-all-profiles" checked>
+                <span>Fazer backup de todos os perfis Chrome detetados</span>
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="sched-incremental" checked>
+                <span>Utilizar modo incremental (reutiliza ficheiros não alterados e poupa disco)</span>
+              </label>
+            </div>
+
+            <div style="background: var(--bg-card); padding: 14px; border-radius: var(--radius-sm); margin: 18px 0; border: 1px solid var(--border-color);">
+              <p><strong>Última Execução:</strong> <span id="sched-last-run">Nunca</span></p>
+              <p><strong>Estado:</strong> <span id="sched-last-status">Aguardando configuração</span></p>
+            </div>
+
+            <button class="btn btn-primary" id="btn-save-schedule">💾 Guardar e Registar no Windows Task Scheduler</button>
+          </div>
+        </section>
+
+        <!-- VIEW 7: HISTORY -->
+        <section class="view-section" id="view-history">
+          <div class="toolbar">
+            <h3 style="font-size: 15px;">Auditoria de Operações Locais</h3>
+            <button class="btn btn-secondary btn-sm" id="btn-export-history">Exportar Histórico (JSON)</button>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Data/Hora</th>
+                  <th>Operação</th>
+                  <th>Extensão</th>
+                  <th>Perfil</th>
+                  <th>Versão</th>
+                  <th>Resultado</th>
+                  <th>Detalhes de Erros</th>
+                </tr>
+              </thead>
+              <tbody id="history-tbody">
+                <tr><td colspan="7" style="text-align: center; padding: 24px;">A carregar registo de operações...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- VIEW 8: REPORTS -->
+        <section class="view-section" id="view-reports">
+          <div class="toolbar">
+            <button class="btn btn-primary" id="btn-refresh-report">🔄 Atualizar Relatório</button>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-secondary" id="btn-export-report-txt">📄 Exportar TXT</button>
+              <button class="btn btn-secondary" id="btn-export-report-json">📊 Exportar JSON</button>
+            </div>
+          </div>
+
+          <pre id="report-preview" style="background: var(--bg-secondary); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); font-family: monospace; font-size: 13px; line-height: 1.5; color: var(--text-primary); overflow-x: auto;">A gerar relatório...</pre>
+        </section>
+
+        <!-- VIEW 9: SETTINGS -->
+        <section class="view-section" id="view-settings">
+          <div style="max-width: 720px;">
+            <h3 style="margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Diretórios de Armazenamento</h3>
+            
+            <div class="form-group">
+              <label for="setting-primary-dir">Pasta Padrão de Destino dos Backups:</label>
+              <input type="text" id="setting-primary-dir" class="form-control" placeholder="C:\Users\...\Documents\ChromeExtensionBackups">
+            </div>
+
+            <div class="form-group">
+              <label for="setting-secondary-dir">Pasta de Destino Secundária (HDD Externo / Rede / Pen USB):</label>
+              <input type="text" id="setting-secondary-dir" class="form-control" placeholder="D:\BackupsChrome (Opcional)">
+            </div>
+
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="setting-auto-secondary">
+                <span>Backup automático para segundo destino (espelhamento com validação)</span>
+              </label>
+            </div>
+
+            <h3 style="margin: 24px 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Compressão & Deduplicação Incremental</h3>
+
+            <div class="form-group">
+              <label for="setting-compression">Nível de Compressão ZIP:</label>
+              <select id="setting-compression" class="form-control">
+                <option value="0">Sem compressão (Armazenamento direto, máxima velocidade)</option>
+                <option value="6" selected>Compressão normal (Equilíbrio ideal tamanho/desempenho)</option>
+                <option value="9">Compressão máxima (Menor tamanho em disco)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="setting-incremental" checked>
+                <span>Ativar backup incremental (deduplica ficheiros idênticos por tamanho/data/SHA-256)</span>
+              </label>
+            </div>
+
+            <h3 style="margin: 24px 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Segurança & Encriptação</h3>
+
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="setting-encryption">
+                <span>Ativar encriptação AES-256-GCM para todos os backups</span>
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label for="setting-password">Palavra-passe Mestre de Encriptação:</label>
+              <input type="password" id="setting-password" class="form-control" placeholder="Palavra-passe forte (nunca gravada em texto simples)">
+              <small style="color: var(--danger); display: block; margin-top: 4px;">Aviso: Sem a palavra-passe, os backups encriptados são matematicamente irrecuperáveis.</small>
+            </div>
+
+            <h3 style="margin: 24px 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Políticas de Retenção & Versionamento</h3>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div class="form-group">
+                <label for="setting-retention-versions">Manter últimas X versões:</label>
+                <input type="number" id="setting-retention-versions" class="form-control" value="5" min="1" max="50">
+              </div>
+              <div class="form-group">
+                <label for="setting-retention-days">Manter backups dos últimos X dias:</label>
+                <input type="number" id="setting-retention-days" class="form-control" value="30" min="1" max="365">
+              </div>
+            </div>
+
+            <h3 style="margin: 24px 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Preferências do Chrome & Notificações</h3>
+
+            <div class="form-group">
+              <label for="setting-custom-chrome-dir">Caminho Personalizado do Chrome User Data (Opcional):</label>
+              <input type="text" id="setting-custom-chrome-dir" class="form-control" placeholder="Deixe em branco para deteção automática do Windows">
+            </div>
+
+            <div class="form-group">
+              <label for="setting-theme">Tema da Aplicação:</label>
+              <select id="setting-theme" class="form-control">
+                <option value="system">Seguir tema do sistema Windows</option>
+                <option value="dark">Modo Escuro (Dark Mode)</option>
+                <option value="light">Modo Claro (Light Mode)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="setting-notify-success" checked>
+                <span>Notificar quando backup for concluído com sucesso</span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="setting-notify-error" checked>
+                <span>Notificar quando ocorrer alguma falha ou bloqueio de ficheiro</span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="setting-notify-change" checked>
+                <span>Notificar quando uma extensão sofrer atualização de versão</span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="setting-confirm-restore" checked>
+                <span>Exigir confirmação antes de qualquer operação de restauro</span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="setting-auto-rollback" checked>
+                <span>Criar ponto de rollback de salvaguarda automático pré-restauro</span>
+              </label>
+            </div>
+
+            <div style="margin-top: 24px;">
+              <button class="btn btn-primary" id="btn-save-settings">💾 Guardar Todas as Definições</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 10: LICENSE -->
+        <section class="view-section" id="view-license">
+          <div style="max-width: 780px;">
+            <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 24px; margin-bottom: 24px;">
+              <h3 style="margin-bottom: 8px;">Estado da Licença Atual</h3>
+              <p>Plano Atual: <strong id="license-current-tier" style="color: var(--accent-light); font-size: 16px;">Plano Gratuito</strong></p>
+              <p>Registado em Nome de: <strong id="license-registered-to">Utilizador</strong></p>
+              <p>Chave Ativa: <code id="license-key-masked" style="font-family: monospace;">Nenhuma chave ativa</code></p>
+              <div style="margin-top: 14px;">
+                <button class="btn btn-secondary btn-sm" id="btn-deactivate-license" style="display: none;">Desativar Licença neste PC</button>
+              </div>
+            </div>
+
+            <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 24px; margin-bottom: 28px;">
+              <h3 style="margin-bottom: 12px;">Ativar Chave de Produto Premium</h3>
+              <div class="form-group">
+                <label for="license-name-input">Nome do Titular da Licença:</label>
+                <input type="text" id="license-name-input" class="form-control" placeholder="ex: Pedro Gonçalves">
+              </div>
+              <div class="form-group">
+                <label for="license-key-input">Chave de Ativação (25 caracteres):</label>
+                <input type="text" id="license-key-input" class="form-control" placeholder="PREM-XXXX-XXXX-XXXX-XXXX ou ULTM-XXXX-XXXX-XXXX-XXXX" style="font-family: monospace; font-weight: 700; letter-spacing: 1px;">
+              </div>
+              <button class="btn btn-primary" id="btn-activate-license">🔑 Validar e Ativar Chave</button>
+            </div>
+
+            <h3>Comparativo de Funcionalidades dos Planos</h3>
+            <div class="table-container" style="margin-top: 12px;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Funcionalidade</th>
+                    <th>Gratuito (Free)</th>
+                    <th>Premium Pro</th>
+                    <th>Premium Ultimate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>Backups de Extensões</td><td>Até 3 backups</td><td>Ilimitados</td><td>Ilimitados</td></tr>
+                  <tr><td>Perfis Chrome Suportados</td><td>Apenas Perfil Padrão</td><td>Todos os Perfis</td><td>Todos os Perfis</td></tr>
+                  <tr><td>Backup Incremental</td><td>❌</td><td>✅</td><td>✅</td></tr>
+                  <tr><td>Encriptação Militar AES-256</td><td>❌</td><td>✅</td><td>✅</td></tr>
+                  <tr><td>Agendador Windows Automático</td><td>❌</td><td>✅</td><td>✅</td></tr>
+                  <tr><td>Destino Secundário (Espelho)</td><td>❌</td><td>✅</td><td>✅</td></tr>
+                  <tr><td>Rollback e Comparador</td><td>Manual</td><td>✅ Completo</td><td>✅ Completo</td></tr>
+                  <tr><td>Múltiplos Computadores</td><td>1 PC</td><td>1 PC</td><td>✅ Ilimitados</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 11: ABOUT -->
+        <section class="view-section" id="view-about">
+          <div style="max-width: 800px;">
+            <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 24px; margin-bottom: 24px;">
+              <h3 style="margin-bottom: 8px;">Diagnóstico do Sistema & Compatibilidade</h3>
+              <p><strong>Aplicação:</strong> Chrome Extension Backup Pro v2.0.0 (Windows)</p>
+              <p><strong>Arquitetura de Comunicação:</strong> Chrome Manifest V3 + Windows Native Messaging Host</p>
+              <p><strong>Extension ID Fixo:</strong> <code>mdimfmpnjkfmebafopcfildiicfegmjk</code></p>
+            </div>
+
+            <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 24px; line-height: 1.6;">
+              <h3 style="color: var(--accent-light); margin-bottom: 12px;">Transparência Rigorosa sobre as Limitações do Google Chrome (Requisito 41)</h3>
+              <p>Para total transparência técnica e honestidade operacional, este produto distingue com precisão:</p>
+              <ul style="margin-left: 20px; margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+                <li><strong>Ficheiros Preservados com 100% de Integridade:</strong> Código-fonte completo (HTML, JavaScript, CSS), manifest.json, manifestos de locales em <code>_locales/</code>, assets visuais, ícones, bibliotecas embutidas e metadados de instalação.</li>
+                <li><strong>Proteções de Integridade da Chrome Web Store:</strong> As extensões instaladas a partir da Chrome Web Store contêm ficheiros de assinatura em <code>_metadata/computed_hashes.json</code> e validações criptográficas no ficheiro <code>Preferences</code> do perfil. Se ficheiros forem restaurados diretamente na pasta com o Chrome aberto, o navegador pode assinalar a extensão como corrompida. Por esse motivo, disponibilizamos o modo <strong>'Exportar como Extensão Descompactada'</strong>, que contorna 100% essas limitações através do modo Developer do Chrome (<code>chrome://extensions</code>).</li>
+                <li><strong>Dados de Sessão e Credenciais:</strong> Por respeito escrupuloso às normas de segurança do Windows e do Chrome, cookies de sessão, histórico de navegação e palavras-passe não são extraídos nem exportados.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 12: PRIVACY -->
+        <section class="view-section" id="view-privacy">
+          <div style="max-width: 800px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 24px; line-height: 1.6;">
+            <h3 style="margin-bottom: 12px; color: var(--success);">Compromisso Inegociável de Privacidade Local-First</h3>
+            <p>O <strong>Chrome Extension Backup Pro</strong> foi concebido desde a sua primeira linha de código segundo o princípio fundamental de soberania dos dados do utilizador:</p>
+            <ul style="margin: 14px 0 14px 20px; display: flex; flex-direction: column; gap: 8px;">
+              <li><strong>Zero Telemetria na Nuvem:</strong> Nenhum ficheiro de extensão, manifesto, metadado ou hash é transmitido para servidores externos. Todo o processamento decorre exclusivamente na sua máquina Windows.</li>
+              <li><strong>Proteção Contra Path Traversal:</strong> Todas as rotinas de arquivamento e extração ZIP validam rigorosamente os caminhos para impedir gravações fora das pastas autorizadas.</li>
+              <li><strong>Encriptação com AES-256:</strong> Se optar por proteger os seus backups com palavra-passe, a encriptação é gerada localmente com derivação de chave PBKDF2-HMAC-SHA256 (100.000 iterações).</li>
+            </ul>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Structured Error Modal (Point 37) -->
+  <div class="modal-backdrop" id="error-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="error-modal-title" style="color: var(--danger);">Erro na Operação</h3>
+        <button class="btn-icon" id="btn-close-error-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="error-box">
+          <div class="error-code" id="error-modal-code">CÓDIGO: BK-0000</div>
+          <p id="error-modal-desc"></p>
+        </div>
+        <p><strong>Ficheiro/Recurso Afetado:</strong> <code id="error-modal-file" style="font-size: 11px;"></code></p>
+        <div class="error-solution">
+          <strong>Solução Recomendada:</strong>
+          <p id="error-modal-solution" style="margin-top: 4px;"></p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-dismiss-error-modal">Compreendi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
+
+  <!-- Application Scripts -->
+  <script src="scripts/native_bridge.js"></script>
+  <script src="scripts/dashboard.js"></script>
+  <script src="scripts/extensions.js"></script>
+  <script src="scripts/backups.js"></script>
+  <script src="scripts/restore.js"></script>
+  <script src="scripts/compare.js"></script>
+  <script src="scripts/scheduler.js"></script>
+  <script src="scripts/history.js"></script>
+  <script src="scripts/reports.js"></script>
+  <script src="scripts/settings.js"></script>
+  <script src="scripts/license.js"></script>
+  <script src="scripts/app.js"></script>
+</body>
+</html>
