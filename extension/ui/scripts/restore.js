@@ -6,6 +6,7 @@
 class RestoreController {
   constructor() {
     this.selectedBackupPath = "";
+    this.lastRestoredPath = "";
     this.validationResult = null;
   }
 
@@ -18,6 +19,15 @@ class RestoreController {
 
     const closeChromeBtn = document.getElementById("btn-close-chrome-controlled");
     if (closeChromeBtn) closeChromeBtn.addEventListener("click", () => this.requestControlledChromeClose());
+
+    const openFolderBtn = document.getElementById("btn-restore-open-folder");
+    if (openFolderBtn) openFolderBtn.addEventListener("click", () => this.openRestoredFolder());
+
+    const copyPathBtn = document.getElementById("btn-restore-copy-path");
+    if (copyPathBtn) copyPathBtn.addEventListener("click", () => this.copyRestoredPath());
+
+    const openChromeBtn = document.getElementById("btn-restore-open-chrome");
+    if (openChromeBtn) openChromeBtn.addEventListener("click", () => this.openChromeExtensionsPage());
   }
 
   async initRestoreView() {
@@ -87,7 +97,7 @@ class RestoreController {
       const res = await window.bridge.checkChromeRunning();
       if (res.running) {
         banner.style.display = "block";
-        bannerText.textContent = `Atenção: O Google Chrome está aberto com ${res.count} processos ativos. Para o restauro direto no perfil, é recomendável fechar o Chrome para evitar locks de ficheiros.`;
+        bannerText.textContent = `O Google Chrome está ativo (${res.count} processos). O restauro direto é seguro e protegido por salvaguarda prévia automática (Ponto de Rollback).`;
         closeBtn.style.display = "inline-flex";
       } else {
         banner.style.display = "none";
@@ -116,7 +126,7 @@ class RestoreController {
     }
   }
 
-  async executeRestore() {
+  async executeRestore(forceRun = true) {
     const backupSelect = document.getElementById("restore-backup-select");
     const profileSelect = document.getElementById("restore-profile-select");
     const modeSelect = document.getElementById("restore-mode-select");
@@ -148,7 +158,7 @@ class RestoreController {
 
     // Step 2: Confirm restore
     const modeDesc = restoreMode === "direct_profile" 
-      ? `diretamente no perfil '${targetProfile}' com salvaguarda prévia automática (Rollback Point)`
+      ? `diretamente no local ativo da extensão com salvaguarda prévia automática (Rollback Point)`
       : `exportando para pasta local pronta para carregar no Modo de Programador (chrome://extensions)`;
 
     if (!confirm(`Confirma a operação de restauro?\n\nModo: ${modeDesc}\n\nFicheiro: ${backupPath}`)) {
@@ -161,10 +171,12 @@ class RestoreController {
       backup_path: backupPath,
       target_profile: targetProfile,
       restore_mode: restoreMode,
-      password: password
+      password: password,
+      force_even_if_chrome_running: forceRun
     });
 
     if (res.success) {
+      this.lastRestoredPath = res.destination_path;
       const reportBox = document.getElementById("restore-report-container");
       reportBox.style.display = "block";
       document.getElementById("restore-report-ext").textContent = `${res.extension_name} (v${res.version})`;
@@ -173,10 +185,55 @@ class RestoreController {
       document.getElementById("restore-report-rollback").textContent = res.rollback_id || "Nenhum (instalação nova)";
       document.getElementById("restore-report-notice").textContent = res.technical_notice || "";
 
+      // Smoothly scroll down to the report box so buttons are immediately visible
+      reportBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
       window.app.showToast("Restauro concluído com 100% de integridade!", "success");
     } else {
       window.app.showErrorModal(res.error);
     }
+  }
+
+  async openRestoredFolder() {
+    if (!this.lastRestoredPath) {
+      window.app.showToast("Nenhuma pasta de restauro disponível.", "warning");
+      return;
+    }
+    window.app.showToast("A abrir pasta no Explorador do Windows...", "info");
+    const res = await window.bridge.openFolder(this.lastRestoredPath);
+    if (res && res.error) {
+      window.app.showToast(`Erro ao abrir pasta: ${res.error}`, "error");
+    }
+  }
+
+  async copyRestoredPath() {
+    if (!this.lastRestoredPath) {
+      window.app.showToast("Nenhum caminho de restauro disponível.", "warning");
+      return;
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(this.lastRestoredPath);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = this.lastRestoredPath;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      window.app.showToast("Caminho copiado para a Área de Transferência!", "success");
+    } catch (e) {
+      console.error("Erro ao copiar caminho:", e);
+      window.app.showToast("Erro ao copiar caminho.", "error");
+    }
+  }
+
+  async openChromeExtensionsPage() {
+    window.app.showToast("A abrir página chrome://extensions...", "info");
+    await window.bridge.openChromeExtensions();
   }
 }
 

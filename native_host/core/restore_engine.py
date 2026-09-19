@@ -24,7 +24,7 @@ from .integrity import validate_archive_integrity, validate_hashes_against_dir
 from .process_manager import is_chrome_running
 from .encryption import is_file_encrypted, decrypt_file
 from .compressor import BackupCompressor
-from .chrome_detector import get_default_chrome_user_data_path
+from .chrome_detector import get_default_chrome_user_data_path, ChromeDetector
 from .disk_space import format_bytes
 from .logger import logger
 from .error_codes import create_error_response
@@ -96,7 +96,7 @@ class RestoreEngine:
         custom_export_dir: Optional[str] = None,
         custom_user_data_path: Optional[str] = None,
         password: Optional[str] = None,
-        force_even_if_chrome_running: bool = False
+        force_even_if_chrome_running: bool = True
     ) -> Dict[str, Any]:
         """
         Executes complete restoration with pre-validation, rollback snapshot, and post-validation.
@@ -112,15 +112,22 @@ class RestoreEngine:
             return create_error_response("RS-0001", "restore", backup_file, err_msg)
 
         # 2. Check if Chrome is running if doing direct profile restore
-        if restore_mode == "direct_profile":
-            chrome_check = is_chrome_running()
-            if chrome_check["running"] and not force_even_if_chrome_running:
+        chrome_check = is_chrome_running()
+        is_chrome_open = chrome_check.get("running", False)
+        if restore_mode == "direct_profile" and is_chrome_open:
+            if not force_even_if_chrome_running:
                 logger.warn("Tentativa de restauro direto com o Google Chrome em execução.", "RESTORE")
                 return create_error_response(
                     "RS-0002",
                     "restore",
                     backup_file,
-                    f"O Google Chrome está atualmente aberto ({chrome_check['count']} processos). Feche o Chrome para evitar locks de ficheiros ou selecione a opção 'Exportar como extensão descompactada'."
+                    f"O Google Chrome está atualmente aberto ({chrome_check.get('count', 1)} processos). Feche o Chrome para evitar locks de ficheiros ou ative o restauro a quente com ponto de rollback."
+                )
+            else:
+                logger.info(
+                    f"Google Chrome em execução ({chrome_check.get('count', 1)} processos). "
+                    "A prosseguir com restauro a quente seguro com salvaguarda prévia (Rollback Point).",
+                    "RESTORE"
                 )
 
         # 3. Extract backup to temporary staging
@@ -159,8 +166,27 @@ class RestoreEngine:
                 os.makedirs(destination_path, exist_ok=True)
             else:
                 user_data = custom_user_data_path or get_default_chrome_user_data_path()
-                version_dirname = f"{version}_0"
-                destination_path = os.path.join(user_data, target_profile_id, "Extensions", ext_id, version_dirname)
+                # Resolve active installed location if already present on this computer (Unpacked or Store)
+                target_dest = None
+                try:
+                    detector = ChromeDetector(user_data)
+                    installed_exts = detector.get_installed_extensions(target_profile_id)
+                    matching = next((e for e in installed_exts if e.get("extension_id") == ext_id), None)
+                    if matching and matching.get("local_path") and os.path.exists(matching["local_path"]):
+                        target_dest = matching["local_path"]
+                except Exception as de:
+                    logger.warn(f"Não foi possível detetar caminho existente da extensão: {de}", "RESTORE")
+
+                if not target_dest:
+                    orig_dir = manifest_data.get("original_source_dir")
+                    if orig_dir and os.path.isabs(orig_dir):
+                        target_dest = orig_dir
+
+                if not target_dest:
+                    version_dirname = f"{version}_0"
+                    target_dest = os.path.join(user_data, target_profile_id, "Extensions", ext_id, version_dirname)
+
+                destination_path = target_dest
 
             # 5. Create Pre-Restore Rollback Snapshot if target exists
             if os.path.exists(destination_path):

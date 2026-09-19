@@ -184,9 +184,8 @@ class ChromeDetector:
                 continue
 
             ext_path = os.path.join(full_prof_path, "Extensions")
-            ext_count = 0
-            if os.path.exists(ext_path) and os.path.isdir(ext_path):
-                ext_count = len([x for x in os.listdir(ext_path) if os.path.isdir(os.path.join(ext_path, x))])
+            installed_exts = self.get_installed_extensions(p_dir)
+            ext_count = len(installed_exts)
 
             friendly_name = names_map.get(p_dir, "Pessoa 1" if p_dir == "Default" else p_dir)
             profiles.append({
@@ -201,7 +200,7 @@ class ChromeDetector:
         return profiles
 
     def get_extension_states_from_preferences(self, profile_id: str) -> Dict[str, Dict[str, Any]]:
-        """Reads Secure Preferences or Preferences to determine enabled/disabled extension states."""
+        """Reads Secure Preferences or Preferences to determine enabled/disabled extension states and locations."""
         states = {}
         prof_path = os.path.join(self.user_data_path, profile_id)
         
@@ -217,17 +216,32 @@ class ChromeDetector:
                         data = json.load(f)
                         settings = data.get("extensions", {}).get("settings", {})
                         for ext_id, ext_info in settings.items():
-                            if ext_id not in states:
+                            if ext_id not in states and isinstance(ext_info, dict):
                                 raw_state = ext_info.get("state")
-                                disable_reasons = ext_info.get("disable_reasons", 0)
-                                # 1 = Enabled, 0 = Disabled
-                                is_enabled = (raw_state == 1 or raw_state is None) and (disable_reasons == 0)
+                                disable_reasons = ext_info.get("disable_reasons")
+                                
+                                # Robust enabled check:
+                                # In Chrome, state == 0 means disabled.
+                                # disable_reasons can be an integer, a non-empty list, or None.
+                                is_disabled = False
+                                if raw_state == 0:
+                                    is_disabled = True
+                                elif disable_reasons:
+                                    if isinstance(disable_reasons, list) and len(disable_reasons) > 0:
+                                        is_disabled = True
+                                    elif isinstance(disable_reasons, int) and disable_reasons != 0:
+                                        is_disabled = True
+
+                                is_enabled = not is_disabled
                                 states[ext_id] = {
                                     "enabled": is_enabled,
+                                    "raw_state": raw_state,
                                     "disable_reasons": disable_reasons,
                                     "install_time": ext_info.get("install_time"),
                                     "location": ext_info.get("location"),
-                                    "manifest_name": ext_info.get("manifest", {}).get("name")
+                                    "path": ext_info.get("path"),
+                                    "manifest": ext_info.get("manifest", {}) if isinstance(ext_info.get("manifest"), dict) else {},
+                                    "manifest_name": ext_info.get("manifest", {}).get("name") if isinstance(ext_info.get("manifest"), dict) else None
                                 }
                 except Exception:
                     continue
@@ -236,39 +250,61 @@ class ChromeDetector:
     def get_installed_extensions(self, profile_id: str = "Default") -> List[Dict[str, Any]]:
         """
         Discovers all physical extension installations within a given profile,
-        parsing manifest.json, calculating size, file count, and enabled status.
+        including store-installed (crx) and developer unpacked extensions.
+        Parses manifest.json, calculates size, file count, and enabled status.
         """
-        results = []
+        results_map = {}
         prof_path = os.path.join(self.user_data_path, profile_id)
         ext_base_dir = os.path.join(prof_path, "Extensions")
-        
-        if not os.path.exists(ext_base_dir):
-            return results
 
         states_map = self.get_extension_states_from_preferences(profile_id)
 
-        try:
-            ext_ids = [d for d in os.listdir(ext_base_dir) if os.path.isdir(os.path.join(ext_base_dir, d))]
-        except Exception:
-            return results
-
-        for ext_id in ext_ids:
-            ext_id_dir = os.path.join(ext_base_dir, ext_id)
-            try:
-                # Inside <ext_id> folder are version directories (e.g. "1.0.0_0")
-                versions = [v for v in os.listdir(ext_id_dir) if os.path.isdir(os.path.join(ext_id_dir, v))]
-            except Exception:
+        # 1. Process all extensions recorded in Chrome settings (both Unpacked and Store extensions)
+        for ext_id, ext_info in states_map.items():
+            loc = ext_info.get("location")
+            # Skip internal Chrome component extensions (location 5 = COMPONENT)
+            if loc == 5:
                 continue
 
-            if not versions:
+            raw_path = ext_info.get("path")
+            target_dir = None
+
+            if raw_path:
+                if os.path.isabs(raw_path):
+                    target_dir = raw_path
+                else:
+                    cand1 = os.path.join(ext_base_dir, raw_path)
+                    cand2 = os.path.join(prof_path, raw_path)
+                    if os.path.exists(cand1):
+                        target_dir = cand1
+                    elif os.path.exists(cand2):
+                        target_dir = cand2
+
+            if not target_dir or not os.path.exists(target_dir):
+                # Try locating version directories in <ext_base_dir>/<ext_id>
+                cand_id_dir = os.path.join(ext_base_dir, ext_id)
+                if os.path.exists(cand_id_dir):
+                    try:
+                        versions = [v for v in os.listdir(cand_id_dir) if os.path.isdir(os.path.join(cand_id_dir, v))]
+                        if versions:
+                            versions.sort(reverse=True)
+                            target_dir = os.path.join(cand_id_dir, versions[0])
+                    except Exception:
+                        pass
+
+            # Self-healing for current extension if loaded unpacked
+            if not target_dir or not os.path.exists(target_dir):
+                if ext_id == "mdimfmpnjkfmebafopcfildiicfegmjk":
+                    # Check parent extension directory of native_host
+                    curr_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                    cand_repo_ext = os.path.join(curr_dir, "extension")
+                    if os.path.exists(cand_repo_ext):
+                        target_dir = cand_repo_ext
+
+            if not target_dir or not os.path.exists(target_dir):
                 continue
 
-            # Sort versions or take latest
-            versions.sort(reverse=True)
-            active_version_dir = versions[0]
-            full_version_path = os.path.join(ext_id_dir, active_version_dir)
-
-            manifest_path = os.path.join(full_version_path, "manifest.json")
+            manifest_path = os.path.join(target_dir, "manifest.json")
             manifest_data = {}
             if os.path.exists(manifest_path):
                 try:
@@ -277,32 +313,33 @@ class ChromeDetector:
                 except Exception:
                     manifest_data = {}
 
-            # Resolve name
-            st_info = states_map.get(ext_id, {})
-            raw_name = manifest_data.get("name", ext_id)
-            display_name = resolve_extension_localized_name(full_version_path, manifest_data, raw_name)
-            if display_name.startswith("__MSG_") and st_info.get("manifest_name"):
-                display_name = st_info["manifest_name"]
-            manifest_version = manifest_data.get("version", active_version_dir.split("_")[0])
+            # Resolve localized extension name
+            raw_name = manifest_data.get("name") or ext_info.get("manifest_name") or ext_id
+            display_name = resolve_extension_localized_name(target_dir, manifest_data, raw_name)
+            if display_name.startswith("__MSG_") and ext_info.get("manifest_name"):
+                display_name = ext_info["manifest_name"]
+
+            manifest_version = manifest_data.get("version") or (
+                ext_info.get("manifest", {}).get("version") if isinstance(ext_info.get("manifest"), dict) else None
+            ) or "1.0.0"
+            active_version_dir = os.path.basename(target_dir)
 
             # Calculate physical directory metrics
-            size_bytes, file_count = calculate_dir_size_and_count(full_version_path)
-            
+            size_bytes, file_count = calculate_dir_size_and_count(target_dir)
+
             # Modification date
             try:
-                mtime = os.path.getmtime(full_version_path)
+                mtime = os.path.getmtime(target_dir)
                 mtime_str = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
             except Exception:
                 mtime_str = "Desconhecida"
 
-            # Determine state: Ativa, Desativada, Erro
-            st_info = states_map.get(ext_id, {})
-            is_enabled = st_info.get("enabled", True)
+            is_enabled = ext_info.get("enabled", True)
             status_text = "Ativa" if is_enabled else "Desativada"
+            icon_url = extract_extension_icon_as_data_url(target_dir, manifest_data)
+            is_unpacked = (loc == 4 or not os.path.abspath(target_dir).startswith(os.path.abspath(ext_base_dir)))
 
-            icon_url = extract_extension_icon_as_data_url(full_version_path, manifest_data)
-
-            results.append({
+            results_map[ext_id] = {
                 "extension_id": ext_id,
                 "name": display_name,
                 "version": manifest_version,
@@ -310,7 +347,7 @@ class ChromeDetector:
                 "profile_id": profile_id,
                 "status": status_text,
                 "is_enabled": is_enabled,
-                "local_path": full_version_path,
+                "local_path": target_dir,
                 "size_bytes": size_bytes,
                 "size_formatted": format_bytes(size_bytes),
                 "file_count": file_count,
@@ -318,9 +355,67 @@ class ChromeDetector:
                 "description": manifest_data.get("description", ""),
                 "manifest_version": manifest_data.get("manifest_version", 3),
                 "permissions": manifest_data.get("permissions", []),
-                "icon_url": icon_url
-            })
+                "icon_url": icon_url,
+                "is_unpacked": is_unpacked
+            }
 
-        # Sort alphabetically by name
+        # 2. Check any remaining extensions physically present in Extensions folder
+        if os.path.exists(ext_base_dir):
+            try:
+                for d in os.listdir(ext_base_dir):
+                    if d in results_map:
+                        continue
+                    ext_id_dir = os.path.join(ext_base_dir, d)
+                    if not os.path.isdir(ext_id_dir):
+                        continue
+                    versions = [v for v in os.listdir(ext_id_dir) if os.path.isdir(os.path.join(ext_id_dir, v))]
+                    if not versions:
+                        continue
+                    versions.sort(reverse=True)
+                    active_version_dir = versions[0]
+                    target_dir = os.path.join(ext_id_dir, active_version_dir)
+                    manifest_path = os.path.join(target_dir, "manifest.json")
+                    manifest_data = {}
+                    if os.path.exists(manifest_path):
+                        try:
+                            with open(manifest_path, "r", encoding="utf-8", errors="ignore") as mf:
+                                manifest_data = json.load(mf)
+                        except Exception:
+                            pass
+                    raw_name = manifest_data.get("name", d)
+                    display_name = resolve_extension_localized_name(target_dir, manifest_data, raw_name)
+                    manifest_version = manifest_data.get("version", active_version_dir.split("_")[0])
+                    size_bytes, file_count = calculate_dir_size_and_count(target_dir)
+                    try:
+                        mtime = os.path.getmtime(target_dir)
+                        mtime_str = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        mtime_str = "Desconhecida"
+
+                    icon_url = extract_extension_icon_as_data_url(target_dir, manifest_data)
+
+                    results_map[d] = {
+                        "extension_id": d,
+                        "name": display_name,
+                        "version": manifest_version,
+                        "version_dir": active_version_dir,
+                        "profile_id": profile_id,
+                        "status": "Ativa",
+                        "is_enabled": True,
+                        "local_path": target_dir,
+                        "size_bytes": size_bytes,
+                        "size_formatted": format_bytes(size_bytes),
+                        "file_count": file_count,
+                        "modified_date": mtime_str,
+                        "description": manifest_data.get("description", ""),
+                        "manifest_version": manifest_data.get("manifest_version", 3),
+                        "permissions": manifest_data.get("permissions", []),
+                        "icon_url": icon_url,
+                        "is_unpacked": False
+                    }
+            except Exception:
+                pass
+
+        results = list(results_map.values())
         results.sort(key=lambda x: x["name"].lower())
         return results

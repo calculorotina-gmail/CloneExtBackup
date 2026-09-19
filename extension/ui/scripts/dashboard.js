@@ -37,15 +37,29 @@ class DashboardController {
     try {
       const activeProfile = window.app.currentProfileId || "Default";
       
-      // Fetch extensions and backups concurrently
-      const [extResp, backupResp, sysResp] = await Promise.all([
+      // Fetch extensions, backups, and system info concurrently with fault-tolerance
+      const [extResult, backupResult, sysResult] = await Promise.allSettled([
         window.bridge.getExtensions(activeProfile),
         window.bridge.listBackups(),
         window.bridge.getSystemInfo()
       ]);
 
-      const exts = extResp.extensions || [];
-      const backups = backupResp.backups || [];
+      let exts = [];
+      if (extResult.status === "fulfilled" && extResult.value && extResult.value.extensions) {
+        exts = extResult.value.extensions;
+      } else if (typeof chrome !== "undefined" && chrome.management && typeof chrome.management.getAll === "function") {
+        try {
+          const mgmtExts = await new Promise((resolve) => chrome.management.getAll(resolve));
+          exts = (mgmtExts || []).filter((e) => e.type !== "theme" && e.id !== chrome.runtime.id);
+        } catch (e) {
+          console.warn("[Dashboard] Fallback chrome.management falhou:", e);
+        }
+      }
+
+      let backups = [];
+      if (backupResult.status === "fulfilled" && backupResult.value && backupResult.value.backups) {
+        backups = backupResult.value.backups;
+      }
 
       // Calculate KPIs
       this.stats.installed = exts.length;

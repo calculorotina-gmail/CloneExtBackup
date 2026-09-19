@@ -86,8 +86,46 @@ class ExtensionsController {
         tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 28px; color: var(--text-muted);"><span style="font-size: 18px;">⏳</span> A carregar extensões instaladas no perfil ${profileId}...</td></tr>`;
       }
 
-      const res = await window.bridge.getExtensions(profileId);
-      this.extensions = res.extensions || [];
+      let res = null;
+      try {
+        res = await window.bridge.getExtensions(profileId);
+      } catch (bridgeErr) {
+        console.warn("[Extensions] Native bridge indisponível, tentando chrome.management:", bridgeErr);
+        if (typeof chrome !== "undefined" && chrome.management && typeof chrome.management.getAll === "function") {
+          try {
+            const mgmtList = await new Promise((resolve) => chrome.management.getAll(resolve));
+            const filtered = (mgmtList || []).filter((e) => e.type !== "theme" && e.id !== chrome.runtime.id);
+            res = {
+              extensions: filtered.map((e) => ({
+                extension_id: e.id,
+                name: e.name,
+                version: e.version,
+                profile_id: profileId,
+                status: e.enabled ? "Ativa" : "Desativada",
+                is_enabled: e.enabled,
+                local_path: e.installType === "development" ? "Pasta local (Modo Programador)" : "Chrome Web Store / Cache",
+                size_formatted: "Modo leitura",
+                file_count: 0,
+                modified_date: "Instalada no Chrome",
+                description: e.description || "",
+                manifest_version: 3,
+                has_backup: false,
+                last_backup_date: "Nenhum backup",
+                last_backup_status: "Sem backup",
+                icon_url: (e.icons && e.icons.length > 0) ? e.icons[e.icons.length - 1].url : null,
+                is_unpacked: e.installType === "development"
+              }))
+            };
+            window.app.showToast("Host nativo desconectado. As extensões foram carregadas via Chrome API (modo de leitura).", "warning");
+          } catch (mgmtErr) {
+            throw bridgeErr;
+          }
+        } else {
+          throw bridgeErr;
+        }
+      }
+
+      this.extensions = (res && res.extensions) ? res.extensions : [];
       this.selectedIds.clear();
 
       // Update sidebar badge

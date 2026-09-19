@@ -29,7 +29,7 @@ powershell -NoProfile -Command ^
     "$batPath = '%ESCAPED_BAT_PATH%';" ^
     "$extId = if ('%1' -ne '') { '%1' } else { 'mdimfmpnjkfmebafopcfildiicfegmjk' };" ^
     "$content = Get-Content -Raw -Path $jsonPath | ConvertFrom-Json;" ^
-    "$content.path = '%BAT_PATH%';" ^
+    "$content.path = $batPath;" ^
     "if ($content.allowed_origins -notcontains ('chrome-extension://' + $extId + '/')) { $content.allowed_origins += ('chrome-extension://' + $extId + '/'); }" ^
     "$content | ConvertTo-Json -Depth 5 | Set-Content -Path $jsonPath -Encoding UTF8;"
 
@@ -41,14 +41,16 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo [3/3] A registar o Native Messaging Host no Registo do Windows (HKCU)...
 set "REG_KEY=HKCU\Software\Google\Chrome\NativeMessagingHosts\com.extbackup.pro"
+set "EDGE_REG_KEY=HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.extbackup.pro"
 
 reg add "%REG_KEY%" /ve /t REG_SZ /d "%MANIFEST_PATH%" /f >nul
+reg add "%EDGE_REG_KEY%" /ve /t REG_SZ /d "%MANIFEST_PATH%" /f >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo ================================================================
     echo [SUCESSO] O componente local Windows foi registado com sucesso!
-    echo Chave de Registo: %REG_KEY%
-    echo Aponta para:      %MANIFEST_PATH%
+    echo Chave Chrome: %REG_KEY%
+    echo Aponta para:  %MANIFEST_PATH%
     echo ================================================================
     echo.
     echo Pode agora abrir o Google Chrome e utilizar a extensao Chrome Extension Backup Pro.

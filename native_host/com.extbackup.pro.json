@@ -1,7 +1,7 @@
 ﻿{
     "name":  "com.extbackup.pro",
     "description":  "Chrome Extension Backup Pro Native Host",
-    "path":  "C:\\antigravity\\CloneExtChrome\\native_host\\ext_backup_host.bat",
+    "path":  "C:\\antigravity\\cloneextbackup\\native_host\\ext_backup_host.bat",
     "type":  "stdio",
     "allowed_origins":  [
                             "chrome-extension://mdimfmpnjkfmebafopcfildiicfegmjk/"

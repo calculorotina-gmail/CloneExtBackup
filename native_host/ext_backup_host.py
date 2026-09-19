@@ -353,7 +353,7 @@ class HostCommandHandler:
         restore_mode = payload.get("restore_mode", "direct_profile")
         custom_export_dir = payload.get("custom_export_dir")
         password = payload.get("password")
-        force_running = payload.get("force_even_if_chrome_running", False)
+        force_running = payload.get("force_even_if_chrome_running", True)
 
         res = self.restore_engine.restore_extension(
             backup_file=backup_path,
@@ -534,6 +534,30 @@ class HostCommandHandler:
             "changes": changes
         }
 
+    def handle_open_folder(self, payload: dict) -> dict:
+        folder_path = payload.get("folder_path")
+        if not folder_path or not os.path.exists(folder_path):
+            return {"success": False, "error": f"Pasta não encontrada: {folder_path}"}
+        try:
+            import subprocess
+            if hasattr(os, "startfile"):
+                os.startfile(folder_path)
+            else:
+                subprocess.Popen(["explorer.exe", folder_path])
+            return {"success": True}
+        except Exception as e:
+            logger.error(f"Erro ao abrir pasta: {e}", "SYSTEM")
+            return {"success": False, "error": str(e)}
+
+    def handle_open_chrome_extensions(self, payload: dict) -> dict:
+        try:
+            import subprocess
+            subprocess.Popen(["cmd.exe", "/c", "start", "chrome.exe", "chrome://extensions"])
+            return {"success": True}
+        except Exception as e:
+            logger.error(f"Erro ao abrir chrome://extensions: {e}", "SYSTEM")
+            return {"success": False, "error": str(e)}
+
     def dispatch(self, action: str, payload: dict) -> dict:
         action_map = {
             "ping": self.handle_ping,
@@ -561,7 +585,9 @@ class HostCommandHandler:
             "deactivate_license": self.handle_deactivate_license,
             "get_schedule": self.handle_get_schedule,
             "save_schedule": self.handle_save_schedule,
-            "check_for_changes": self.handle_check_for_changes
+            "check_for_changes": self.handle_check_for_changes,
+            "open_folder": self.handle_open_folder,
+            "open_chrome_extensions": self.handle_open_chrome_extensions
         }
 
         handler = action_map.get(action)

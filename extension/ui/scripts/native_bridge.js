@@ -47,7 +47,11 @@ class NativeBridge {
 
         if (chrome.runtime.lastError) {
           this._notifyConnection(false);
-          return reject(new Error(chrome.runtime.lastError.message));
+          let msg = chrome.runtime.lastError.message || "";
+          if (msg.includes("Specified native messaging host not found")) {
+            msg = "Componente local Windows não encontrado. Execute 'install_host.bat' na pasta native_host para registar o host nativo.";
+          }
+          return reject(new Error(msg));
         }
 
         if (!response) {
@@ -197,6 +201,22 @@ class NativeBridge {
   // Changes Monitoring
   async checkForChanges() {
     return this.send("check_for_changes");
+  }
+
+  // System actions
+  async openFolder(folderPath) {
+    return this.send("open_folder", { folder_path: folderPath });
+  }
+
+  async openChromeExtensions() {
+    try {
+      if (typeof chrome !== "undefined" && chrome.tabs && typeof chrome.tabs.create === "function") {
+        chrome.tabs.create({ url: "chrome://extensions" });
+      }
+    } catch (e) {
+      // ignore
+    }
+    return this.send("open_chrome_extensions");
   }
 }
 

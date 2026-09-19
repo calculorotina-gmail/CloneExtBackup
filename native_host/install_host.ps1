@@ -32,15 +32,22 @@ if ($manifest.allowed_origins -notcontains $origin) {
 }
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -Path $ManifestPath -Encoding UTF8
 
-Write-Host "[3/3] A registar no Registo do Windows (HKCU\Software\Google\Chrome\NativeMessagingHosts\com.extbackup.pro)..." -ForegroundColor Yellow
-$regPath = "HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.extbackup.pro"
-if (-not (Test-Path $regPath)) {
-    New-Item -Path $regPath -Force | Out-Null
+Write-Host "[3/3] A registar no Registo do Windows (Chrome e Edge)..." -ForegroundColor Yellow
+$regPathChrome = "HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.extbackup.pro"
+if (-not (Test-Path $regPathChrome)) {
+    New-Item -Path $regPathChrome -Force | Out-Null
 }
-Set-ItemProperty -Path $regPath -Name "(Default)" -Value $ManifestPath
+Set-ItemProperty -Path $regPathChrome -Name "(Default)" -Value $ManifestPath
+
+$regPathEdge = "HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\com.extbackup.pro"
+if (-not (Test-Path $regPathEdge)) {
+    New-Item -Path $regPathEdge -Force | Out-Null
+}
+Set-ItemProperty -Path $regPathEdge -Name "(Default)" -Value $ManifestPath
 
 Write-Host ""
 Write-Host "[SUCESSO] Native Messaging Host registado com sucesso!" -ForegroundColor Green
-Write-Host "Registo: $regPath" -ForegroundColor Gray
-Write-Host "Manifesto: $ManifestPath" -ForegroundColor Gray
+Write-Host "Registo Chrome: $regPathChrome" -ForegroundColor Gray
+Write-Host "Registo Edge:   $regPathEdge" -ForegroundColor Gray
+Write-Host "Manifesto:      $ManifestPath" -ForegroundColor Gray
 Write-Host ""

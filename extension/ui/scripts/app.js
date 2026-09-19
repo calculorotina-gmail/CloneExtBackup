@@ -56,12 +56,16 @@ class App {
       themeBtn.addEventListener("click", () => this.toggleTheme());
     }
 
-    // Expand to full tab button
+    // Expand to full tab button in header
     const expandBtn = document.getElementById("btn-expand-tab");
     if (expandBtn) {
-      expandBtn.addEventListener("click", () => {
-        chrome.runtime.sendMessage({ action: "open_full_tab" });
-      });
+      expandBtn.addEventListener("click", () => this.openInFullTab());
+    }
+
+    // Expand to full tab button in sidebar
+    const sidebarExpandBtn = document.getElementById("btn-sidebar-expand");
+    if (sidebarExpandBtn) {
+      sidebarExpandBtn.addEventListener("click", () => this.openInFullTab());
     }
 
     // Error modal close buttons
@@ -69,6 +73,22 @@ class App {
     if (closeErrBtn) closeErrBtn.addEventListener("click", () => this.closeErrorModal());
     const dismissErrBtn = document.getElementById("btn-dismiss-error-modal");
     if (dismissErrBtn) dismissErrBtn.addEventListener("click", () => this.closeErrorModal());
+  }
+
+  openInFullTab() {
+    try {
+      if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ action: "open_full_tab" });
+      } else {
+        window.open(chrome.runtime.getURL("ui/index.html"), "_blank");
+      }
+    } catch (e) {
+      try {
+        window.open(chrome.runtime.getURL("ui/index.html"), "_blank");
+      } catch (e2) {
+        console.error("Erro ao abrir separador completo:", e2);
+      }
+    }
   }
 
   navigate(viewId) {
@@ -217,6 +237,45 @@ class App {
     document.getElementById("error-modal-desc").textContent = err.description;
     document.getElementById("error-modal-file").textContent = err.affected_file || "Nenhum ficheiro específico";
     document.getElementById("error-modal-solution").textContent = err.solution || "Tente novamente mais tarde.";
+
+    // Action buttons for RS-0002 (Chrome running during restore)
+    let extraActions = document.getElementById("error-modal-extra-actions");
+    if (!extraActions) {
+      extraActions = document.createElement("div");
+      extraActions.id = "error-modal-extra-actions";
+      extraActions.style.display = "flex";
+      extraActions.style.gap = "8px";
+      const footer = modal.querySelector(".modal-footer");
+      if (footer) footer.insertBefore(extraActions, footer.firstChild);
+    }
+    extraActions.innerHTML = "";
+
+    if (err.code === "RS-0002") {
+      const forceBtn = document.createElement("button");
+      forceBtn.className = "btn btn-primary";
+      forceBtn.textContent = "Restaurar Mesmo Assim (com Rollback)";
+      forceBtn.addEventListener("click", () => {
+        this.closeErrorModal();
+        if (window.restoreController) {
+          window.restoreController.executeRestore(true);
+        }
+      });
+
+      const exportBtn = document.createElement("button");
+      exportBtn.className = "btn btn-secondary";
+      exportBtn.textContent = "Exportar Descompactada";
+      exportBtn.addEventListener("click", () => {
+        this.closeErrorModal();
+        const modeSel = document.getElementById("restore-mode-select");
+        if (modeSel) modeSel.value = "unpacked_export";
+        if (window.restoreController) {
+          window.restoreController.executeRestore(true);
+        }
+      });
+
+      extraActions.appendChild(forceBtn);
+      extraActions.appendChild(exportBtn);
+    }
 
     modal.classList.add("open");
   }
