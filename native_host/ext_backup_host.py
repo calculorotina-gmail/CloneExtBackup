@@ -15,10 +15,13 @@ import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-# Ensure core package is on Python sys.path
+# Ensure core package and native_host are on Python sys.path
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(SCRIPT_DIR)
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
+if PARENT_DIR not in sys.path:
+    sys.path.insert(0, PARENT_DIR)
 
 from core.logger import logger
 from core.error_codes import create_error_response, ERROR_DEFINITIONS
@@ -589,7 +592,6 @@ class HostCommandHandler:
             return {"success": False, "error": f"Ficheiro de backup não encontrado: {backup_path}"}
         password = payload.get("password")
         try:
-            from native_host.core.restore_engine import RestoreEngine
             engine = RestoreEngine()
             info = engine.inspect_backup_archive(backup_path, password)
             return {"success": True, "info": info}
@@ -604,9 +606,9 @@ class HostCommandHandler:
             return {"success": False, "error": "Nome do ficheiro ou dados base64 ausentes."}
         try:
             import base64
-            from native_host.core.restore_engine import RestoreEngine, DEFAULT_BACKUP_DIR
-            target_path = os.path.join(DEFAULT_BACKUP_DIR, filename)
-            os.makedirs(DEFAULT_BACKUP_DIR, exist_ok=True)
+            backup_dir = get_default_backup_dir()
+            target_path = os.path.join(backup_dir, filename)
+            os.makedirs(backup_dir, exist_ok=True)
             raw_bytes = base64.b64decode(base64_data)
             with open(target_path, "wb") as f:
                 f.write(raw_bytes)
