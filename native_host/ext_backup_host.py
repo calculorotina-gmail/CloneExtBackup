@@ -270,14 +270,14 @@ class HostCommandHandler:
         return res
 
     def _scan_backups_in_dir(self, directory: str) -> list:
-        """Helper to scan and parse backups in a directory."""
+        """Helper to scan and parse backups in a directory (.crxbackup and .zip)."""
         if not os.path.exists(directory):
             return []
         import zipfile
         backups = []
         for root, _, files in os.walk(directory):
             for f in files:
-                if f.endswith(".crxbackup"):
+                if f.endswith(".crxbackup") or f.endswith(".zip"):
                     fp = os.path.join(root, f)
                     try:
                         encrypted = is_file_encrypted(fp)
@@ -286,33 +286,76 @@ class HostCommandHandler:
                         file_size = os.path.getsize(fp)
 
                         manifest = {}
+                        file_count = 0
                         if not encrypted:
                             try:
                                 with zipfile.ZipFile(fp, "r") as z:
-                                    if "manifest.json" in z.namelist():
+                                    namelist = z.namelist()
+                                    file_count = len([n for n in namelist if not n.endswith("/")])
+                                    if "manifest.json" in namelist:
                                         with z.open("manifest.json") as mf:
                                             manifest = json.load(mf)
+                                    elif "extension/manifest.json" in namelist:
+                                        with z.open("extension/manifest.json") as mf:
+                                            manifest = json.load(mf)
+                                    else:
+                                        candidates = [n for n in namelist if n.endswith("/manifest.json")]
+                                        if candidates:
+                                            with z.open(candidates[0]) as mf:
+                                                manifest = json.load(mf)
                             except Exception:
                                 pass
 
-                        backups.append({
-                            "backup_id": manifest.get("backup_id", os.path.splitext(f)[0]),
-                            "filename": f,
-                            "path": fp,
-                            "extension_id": manifest.get("extension_id", f.split("_")[1] if "_" in f else "desconhecido"),
-                            "extension_name": manifest.get("extension_name", f.split("_")[0]),
-                            "version": manifest.get("version", "1.0"),
-                            "chrome_profile": manifest.get("chrome_profile", "Default"),
-                            "backup_date": manifest.get("backup_date", date_str),
-                            "file_count": manifest.get("file_count", 0),
-                            "size_bytes": file_size,
-                            "size_formatted": format_bytes(file_size),
-                            "is_encrypted": encrypted or manifest.get("is_encrypted", False),
-                            "is_locked": manifest.get("is_locked", False),
-                            "is_incremental": manifest.get("is_incremental", False),
-                            "compression_level": manifest.get("compression_level", 6),
-                            "integrity_status": "Válido"
-                        })
+                        # Check if it's a direct extension manifest or backup manifest
+                        if "manifest_version" in manifest and "backup_id" not in manifest:
+                            ext_name = manifest.get("name", os.path.splitext(f)[0])
+                            version = manifest.get("version", "1.0")
+                            ext_id = "desconhecido"
+                            parts = os.path.splitext(f)[0].split("_")
+                            for p in parts:
+                                if len(p) == 32 and p.isalnum() and p.islower():
+                                    ext_id = p
+                                    break
+
+                            backups.append({
+                                "backup_id": os.path.splitext(f)[0],
+                                "filename": f,
+                                "path": fp,
+                                "extension_id": ext_id,
+                                "extension_name": ext_name,
+                                "version": version,
+                                "chrome_profile": "Default",
+                                "backup_date": date_str,
+                                "file_count": file_count,
+                                "size_bytes": file_size,
+                                "size_formatted": format_bytes(file_size),
+                                "is_encrypted": False,
+                                "is_locked": False,
+                                "is_incremental": False,
+                                "format": "zip",
+                                "compression_level": 6,
+                                "integrity_status": "Válido (Arquivo ZIP)"
+                            })
+                        elif f.endswith(".crxbackup") or "backup_id" in manifest:
+                            backups.append({
+                                "backup_id": manifest.get("backup_id", os.path.splitext(f)[0]),
+                                "filename": f,
+                                "path": fp,
+                                "extension_id": manifest.get("extension_id", f.split("_")[1] if "_" in f else "desconhecido"),
+                                "extension_name": manifest.get("extension_name", f.split("_")[0]),
+                                "version": manifest.get("version", "1.0"),
+                                "chrome_profile": manifest.get("chrome_profile", "Default"),
+                                "backup_date": manifest.get("backup_date", date_str),
+                                "file_count": manifest.get("file_count", file_count),
+                                "size_bytes": file_size,
+                                "size_formatted": format_bytes(file_size),
+                                "is_encrypted": encrypted or manifest.get("is_encrypted", False),
+                                "is_locked": manifest.get("is_locked", False),
+                                "is_incremental": manifest.get("is_incremental", False),
+                                "format": "crxbackup" if f.endswith(".crxbackup") else "zip",
+                                "compression_level": manifest.get("compression_level", 6),
+                                "integrity_status": "Válido"
+                            })
                     except Exception:
                         continue
         return backups
@@ -569,11 +612,12 @@ class HostCommandHandler:
             root.withdraw()
             root.wm_attributes("-topmost", 1)
             file_path = filedialog.askopenfilename(
-                title="Selecionar Ficheiro de Backup (.crxbackup)",
+                title="Selecionar Ficheiro de Backup (.crxbackup ou .zip)",
                 filetypes=[
-                    ("Chrome Extension Backup", "*.crxbackup"),
-                    ("Ficheiros ZIP", "*.zip"),
-                    ("Todos os Ficheiros", "*.*")
+                    ("Arquivos de Backup e ZIP (*.crxbackup; *.zip)", "*.crxbackup;*.zip"),
+                    ("Chrome Extension Backup (*.crxbackup)", "*.crxbackup"),
+                    ("Ficheiros ZIP da Extensão (*.zip)", "*.zip"),
+                    ("Todos os Ficheiros (*.*)", "*.*")
                 ]
             )
             root.destroy()

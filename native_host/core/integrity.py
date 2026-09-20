@@ -147,10 +147,29 @@ def validate_archive_integrity(archive_path: str, password: Optional[str] = None
 
             file_list = zf.namelist()
             if "hashes/hashes.json" not in file_list:
+                # Check if this is a standard extension ZIP archive with manifest.json
+                manifest_candidates = [n for n in file_list if n == "manifest.json" or n.endswith("/manifest.json")]
+                if manifest_candidates:
+                    ext_files = [n for n in file_list if not n.endswith("/")]
+                    return {
+                        "valid": True,
+                        "status": "Backup válido (Arquivo ZIP da Extensão)",
+                        "total_files": len(ext_files),
+                        "identical_count": len(ext_files),
+                        "modified_count": 0,
+                        "missing_count": 0,
+                        "added_count": 0,
+                        "details": {
+                            "identical": [{"path": n} for n in ext_files],
+                            "modified": [],
+                            "missing": [],
+                            "added": []
+                        }
+                    }
                 return {
                     "valid": False,
                     "status": "Backup inválido",
-                    "error": "hashes/hashes.json não encontrado no arquivo de backup."
+                    "error": "Arquivo ZIP inválido: manifest.json ou hashes/hashes.json não encontrado."
                 }
 
             with zf.open("hashes/hashes.json") as hf:

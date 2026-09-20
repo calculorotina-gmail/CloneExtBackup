@@ -44,7 +44,7 @@ class BackupsController {
     const importRestoreBtn = document.getElementById("btn-import-restore-backup");
     if (importRestoreBtn) {
       importRestoreBtn.addEventListener("click", async () => {
-        window.app.showToast("A abrir seletor de ficheiros .crxbackup...", "info");
+        window.app.showToast("A abrir seletor de ficheiros (.crxbackup ou .zip)...", "info");
         try {
           const res = await window.bridge.openFileDialog();
           if (res && res.success && res.file_path) {
@@ -124,12 +124,17 @@ class BackupsController {
     if (!tbody) return;
 
     if (this.filteredBackups.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 32px; color: var(--text-muted);">Nenhum ficheiro .crxbackup encontrado na pasta de destino.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 32px; color: var(--text-muted);">Nenhum ficheiro de backup (.crxbackup ou .zip) encontrado na pasta de destino.</td></tr>`;
       return;
     }
 
     tbody.innerHTML = this.filteredBackups
       .map((b) => {
+        const isZip = (b.filename && b.filename.endsWith(".zip")) || b.format === "zip";
+        const fmtBadge = isZip
+          ? `<span class="badge badge-info" style="font-size: 10px; margin-left: 6px;">ZIP</span>`
+          : `<span class="badge badge-primary" style="font-size: 10px; margin-left: 6px;">CRXBACKUP</span>`;
+
         const lockIcon = b.is_locked ? "🔒" : "🔓";
         const lockText = b.is_locked ? "Bloqueado" : "Desbloqueado";
         const encBadge = b.is_encrypted
@@ -141,7 +146,10 @@ class BackupsController {
         return `
         <tr>
           <td>
-            <div style="font-weight: 600; color: var(--text-primary);">${b.extension_name}</div>
+            <div style="display: flex; align-items: center;">
+              <span style="font-weight: 600; color: var(--text-primary);">${b.extension_name}</span>
+              ${fmtBadge}
+            </div>
             <div style="font-family: monospace; font-size: 11px; color: var(--text-muted);">${b.filename}</div>
           </td>
           <td><span class="badge badge-gray">v${b.version}</span></td>

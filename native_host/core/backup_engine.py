@@ -278,13 +278,19 @@ class BackupEngine:
         with open(os.path.join(staging_dir, "manifest.json"), "w", encoding="utf-8") as mf:
             json.dump(root_manifest, mf, indent=2)
 
-        # 9. Compress into .crxbackup archive
+        # 9. Compress into .crxbackup archive AND standard extension .zip archive
         final_filename = f"{backup_id}.crxbackup"
         final_primary_path = os.path.join(dest_dir, final_filename)
 
+        zip_filename = f"{backup_id}.zip"
+        final_zip_path = os.path.join(dest_dir, zip_filename)
+
         try:
             compressor = BackupCompressor(compression_level)
+            # Create full .crxbackup archive (contains manifest.json, metadata/, hashes/, extension/)
             comp_res = compressor.create_archive(staging_dir, final_primary_path)
+            # Create standard .zip archive containing all physical extension files
+            compressor.create_archive(staging_ext_dir, final_zip_path)
             shutil.rmtree(staging_dir, ignore_errors=True)
         except Exception as ce:
             shutil.rmtree(staging_dir, ignore_errors=True)
@@ -305,6 +311,7 @@ class BackupEngine:
                 return create_error_response("BK-0006", "backup", final_primary_path, str(ee))
 
         primary_final_size = os.path.getsize(final_primary_path)
+        zip_final_size = os.path.getsize(final_zip_path) if os.path.exists(final_zip_path) else 0
 
         # 11. Multi-destination mirror to secondary target if configured
         secondary_status = None
@@ -313,6 +320,9 @@ class BackupEngine:
                 os.makedirs(secondary_target_dir, exist_ok=True)
                 sec_path = os.path.join(secondary_target_dir, final_filename)
                 shutil.copy2(final_primary_path, sec_path)
+                if os.path.exists(final_zip_path):
+                    sec_zip_path = os.path.join(secondary_target_dir, zip_filename)
+                    shutil.copy2(final_zip_path, sec_zip_path)
                 sec_size = os.path.getsize(sec_path)
                 if sec_size == primary_final_size:
                     secondary_status = {"success": True, "path": sec_path, "status": "OK"}
@@ -324,13 +334,17 @@ class BackupEngine:
                 logger.error(f"Falha no destino secundário: {se}", "BACKUP")
 
         elapsed_seconds = round(time.time() - op_start, 2)
-        logger.info(f"Backup concluído com sucesso em {elapsed_seconds}s: {final_primary_path}", "BACKUP")
+        logger.info(f"Backup concluído com sucesso em {elapsed_seconds}s: {final_primary_path} e {final_zip_path}", "BACKUP")
 
         result = {
             "success": True,
             "backup_id": backup_id,
             "backup_path": final_primary_path,
             "filename": final_filename,
+            "zip_path": final_zip_path,
+            "zip_filename": zip_filename,
+            "zip_size_bytes": zip_final_size,
+            "zip_size_formatted": format_bytes(zip_final_size),
             "extension_id": extension_id,
             "extension_name": extension_name,
             "version": version,

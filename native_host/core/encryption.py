@@ -50,18 +50,27 @@ def encrypt_file(source_path: str, target_encrypted_path: str, password: str) ->
     if not password:
         raise ValueError("A palavra-passe de encriptação não pode ser vazia.")
 
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
     salt = os.urandom(SALT_LEN)
     nonce = os.urandom(NONCE_LEN)
     key = derive_key(password, salt)
-    aesgcm = AESGCM(key)
 
     with open(source_path, "rb") as f_in:
         plaintext = f_in.read()
 
-    # Associated authenticated data includes the magic header
-    ciphertext = aesgcm.encrypt(nonce, plaintext, MAGIC_HEADER)
+    try:
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        aesgcm = AESGCM(key)
+        # Associated authenticated data includes the magic header
+        ciphertext = aesgcm.encrypt(nonce, plaintext, MAGIC_HEADER)
+    except ImportError:
+        try:
+            from Crypto.Cipher import AES
+            cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+            cipher.update(MAGIC_HEADER)
+            ct, tag = cipher.encrypt_and_digest(plaintext)
+            ciphertext = ct + tag
+        except ImportError:
+            raise ImportError("É necessário o pacote 'cryptography' ou 'pycryptodome' para encriptação AES-256.")
 
     os.makedirs(os.path.dirname(os.path.abspath(target_encrypted_path)), exist_ok=True)
     with open(target_encrypted_path, "wb") as f_out:
@@ -90,9 +99,6 @@ def decrypt_file(encrypted_path: str, target_decrypted_path: str, password: str)
     if not is_file_encrypted(encrypted_path):
         raise ValueError("O ficheiro fornecido não é um arquivo encriptado válido (cabeçalho CRXENC01 em falta).")
 
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    from cryptography.exceptions import InvalidTag
-
     with open(encrypted_path, "rb") as f:
         header = f.read(len(MAGIC_HEADER))
         salt = f.read(SALT_LEN)
@@ -100,12 +106,30 @@ def decrypt_file(encrypted_path: str, target_decrypted_path: str, password: str)
         ciphertext = f.read()
 
     key = derive_key(password, salt)
-    aesgcm = AESGCM(key)
 
     try:
-        plaintext = aesgcm.decrypt(nonce, ciphertext, MAGIC_HEADER)
-    except InvalidTag:
-        raise PermissionError("Palavra-passe incorreta ou ficheiro de backup corrompido/adulterado.")
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.exceptions import InvalidTag
+        aesgcm = AESGCM(key)
+        try:
+            plaintext = aesgcm.decrypt(nonce, ciphertext, MAGIC_HEADER)
+        except InvalidTag:
+            raise PermissionError("Palavra-passe incorreta ou ficheiro de backup corrompido/adulterado.")
+    except ImportError:
+        try:
+            from Crypto.Cipher import AES
+            if len(ciphertext) < 16:
+                raise ValueError("Payload encriptado inválido ou truncado.")
+            ct = ciphertext[:-16]
+            tag = ciphertext[-16:]
+            cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+            cipher.update(MAGIC_HEADER)
+            try:
+                plaintext = cipher.decrypt_and_verify(ct, tag)
+            except ValueError:
+                raise PermissionError("Palavra-passe incorreta ou ficheiro de backup corrompido/adulterado.")
+        except ImportError:
+            raise ImportError("É necessário o pacote 'cryptography' ou 'pycryptodome' para desencriptação.")
 
     os.makedirs(os.path.dirname(os.path.abspath(target_decrypted_path)), exist_ok=True)
     with open(target_decrypted_path, "wb") as f_out:

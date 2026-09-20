@@ -244,7 +244,7 @@
               <input type="text" id="backups-search-input" placeholder="Filtrar arquivos de backup...">
             </div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-              <button class="btn btn-outline" id="btn-import-restore-backup" title="Escolher ficheiro .crxbackup e restaurar diretamente">📥 Restaurar Ficheiro .crxbackup</button>
+              <button class="btn btn-outline" id="btn-import-restore-backup" title="Escolher ficheiro .crxbackup ou .zip e restaurar diretamente">📥 Restaurar Ficheiro (.crxbackup / .zip)</button>
               <button class="btn btn-secondary" id="btn-find-custom-backups">📂 Encontrar Backups (Unidade Externa)</button>
               <button class="btn btn-primary" id="btn-refresh-backups">🔄 Atualizar Catálogo</button>
             </div>
@@ -281,10 +281,10 @@
               <button class="btn btn-secondary btn-sm" id="btn-close-chrome-controlled" style="font-size: 11px;">Fechar Chrome de Forma Controlada</button>
             </div>
 
-            <!-- Source Selection: Catalog vs Custom .crxbackup File -->
+            <!-- Source Selection: Catalog vs Custom File -->
             <div class="restore-source-selector" style="margin-bottom: 20px;">
               <label style="font-weight: 700; margin-bottom: 10px; display: block; font-size: 13.5px; color: var(--text-primary);">
-                1. Selecionar Arquivo de Backup (.crxbackup):
+                1. Selecionar Arquivo de Backup (.crxbackup ou .zip):
               </label>
               
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
@@ -297,9 +297,9 @@
 
                 <button type="button" class="btn btn-source-tab" id="btn-source-custom-file">
                   <div style="font-weight: 700; font-size: 13px; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
-                    <span>📂</span> Ficheiro .crxbackup do Computador
+                    <span>📂</span> Ficheiro .crxbackup ou .zip do PC
                   </div>
-                  <small style="color: var(--text-muted); font-size: 11px; margin-top: 2px;">Restaurar qualquer ficheiro .crxbackup do PC</small>
+                  <small style="color: var(--text-muted); font-size: 11px; margin-top: 2px;">Restaurar qualquer ficheiro .crxbackup ou .zip</small>
                 </button>
               </div>
 
@@ -314,14 +314,14 @@
                 <div id="crxbackup-dropzone" class="crxbackup-dropzone">
                   <div style="font-size: 30px; margin-bottom: 6px;">📦</div>
                   <div style="font-weight: 700; font-size: 13.5px; color: var(--text-primary); margin-bottom: 4px;">
-                    Arraste e largue aqui o seu ficheiro .crxbackup
+                    Arraste e largue aqui o seu ficheiro .crxbackup ou .zip
                   </div>
                   <div style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 12px;">
                     ou selecione diretamente no seu computador
                   </div>
                   <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
                     <button type="button" class="btn btn-primary btn-sm" id="btn-browse-crxbackup-native">
-                      📂 Procurar no Computador (Janela Nativa)
+                      📂 Procurar no Computador (.crxbackup / .zip)
                     </button>
                     <label class="btn btn-secondary btn-sm" style="margin: 0; cursor: pointer;">
                       📁 Selecionar do Disco

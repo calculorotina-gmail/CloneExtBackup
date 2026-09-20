@@ -139,7 +139,7 @@ class RestoreController {
 
   async processDroppedFile(file) {
     if (!file.name.endsWith(".crxbackup") && !file.name.endsWith(".zip")) {
-      window.app.showToast("Selecione um ficheiro com a extensão .crxbackup.", "warning");
+      window.app.showToast("Selecione um ficheiro com a extensão .crxbackup ou .zip.", "warning");
       return;
     }
 
@@ -151,7 +151,7 @@ class RestoreController {
         const res = await window.bridge.importBackupFile(file.name, base64);
         if (res && res.success && res.file_path) {
           this.applyInspectedBackupInfo(res.info, res.file_path);
-          window.app.showToast("Ficheiro .crxbackup validado com sucesso!", "success");
+          window.app.showToast("Ficheiro de backup validado com sucesso!", "success");
         } else {
           window.app.showToast(res.error || "Erro ao importar ficheiro.", "error");
         }
@@ -172,7 +172,7 @@ class RestoreController {
       } else {
         window.app.showErrorModal({
           code: "VL-0002",
-          title: "Arquivo .crxbackup Inválido",
+          title: "Arquivo de Backup Inválido",
           description: res.error || "Não foi possível validar a integridade deste arquivo de backup.",
           operation: "inspect_backup_file",
           solution: "Verifique se o ficheiro não está corrompido ou protegido por senha."
@@ -326,7 +326,7 @@ class RestoreController {
     const password = passwordInput ? passwordInput.value.trim() : null;
 
     if (!backupPath) {
-      window.app.showToast("Selecione um ficheiro de backup (.crxbackup) para restaurar.", "warning");
+      window.app.showToast("Selecione um ficheiro de backup (.crxbackup ou .zip) para restaurar.", "warning");
       return;
     }
 

@@ -20,7 +20,7 @@ import zipfile
 import datetime
 from typing import Dict, Any, List, Optional
 
-from .integrity import validate_archive_integrity, validate_hashes_against_dir
+from .integrity import validate_archive_integrity, validate_hashes_against_dir, build_hashes_map_for_dir
 from .process_manager import is_chrome_running
 from .encryption import is_file_encrypted, decrypt_file
 from .compressor import BackupCompressor
@@ -69,27 +69,77 @@ class RestoreEngine:
                     pass
 
     def inspect_backup_archive(self, backup_file: str, password: Optional[str] = None) -> Dict[str, Any]:
-        """Inspects and validates a .crxbackup archive without restoring, returning manifest and health data."""
+        """Inspects and validates a .crxbackup or .zip archive without restoring, returning manifest and health data."""
         val_res = validate_archive_integrity(backup_file, password)
         if not val_res.get("valid"):
             raise ValueError(val_res.get("error", "O arquivo de backup falhou na verificação de integridade SHA-256."))
 
         temp_dir = self.extract_backup_to_temp(backup_file, password)
         try:
-            manifest_file = os.path.join(temp_dir, "manifest.json")
-            if not os.path.exists(manifest_file):
-                raise FileNotFoundError("manifest.json ausente no arquivo .crxbackup.")
-            with open(manifest_file, "r", encoding="utf-8") as f:
-                manifest_data = json.load(f)
+            is_crxbackup_struct = os.path.exists(os.path.join(temp_dir, "extension"))
 
-            inner_manifest = os.path.join(temp_dir, "extension", "manifest.json")
-            inner_data = {}
-            if os.path.exists(inner_manifest):
-                try:
-                    with open(inner_manifest, "r", encoding="utf-8") as imf:
-                        inner_data = json.load(imf)
-                except Exception:
-                    pass
+            ext_name = "Extensão"
+            ext_version = "1.0"
+            ext_id = ""
+            ext_desc = ""
+            file_count = 0
+            backup_date = ""
+
+            if is_crxbackup_struct:
+                manifest_file = os.path.join(temp_dir, "manifest.json")
+                if not os.path.exists(manifest_file):
+                    raise FileNotFoundError("manifest.json ausente no arquivo .crxbackup.")
+                with open(manifest_file, "r", encoding="utf-8") as f:
+                    manifest_data = json.load(f)
+
+                ext_id = manifest_data.get("extension_id", "")
+                ext_name = manifest_data.get("extension_name", "")
+                ext_version = manifest_data.get("version", "1.0")
+                backup_date = manifest_data.get("backup_date", "")
+                file_count = manifest_data.get("file_count", 0)
+
+                inner_manifest = os.path.join(temp_dir, "extension", "manifest.json")
+                if os.path.exists(inner_manifest):
+                    try:
+                        with open(inner_manifest, "r", encoding="utf-8") as imf:
+                            inner_data = json.load(imf)
+                            ext_desc = inner_data.get("description", "")
+                            if not ext_name:
+                                ext_name = inner_data.get("name", "Extensão")
+                    except Exception:
+                        pass
+            else:
+                # Direct extension ZIP layout
+                manifest_file = os.path.join(temp_dir, "manifest.json")
+                payload_dir = temp_dir
+                if not os.path.exists(manifest_file):
+                    for entry in os.listdir(temp_dir):
+                        sub = os.path.join(temp_dir, entry)
+                        if os.path.isdir(sub) and os.path.exists(os.path.join(sub, "manifest.json")):
+                            manifest_file = os.path.join(sub, "manifest.json")
+                            payload_dir = sub
+                            break
+
+                if not os.path.exists(manifest_file):
+                    raise FileNotFoundError("manifest.json ausente no arquivo ZIP da extensão.")
+
+                with open(manifest_file, "r", encoding="utf-8") as f:
+                    manifest_data = json.load(f)
+
+                ext_name = manifest_data.get("name", os.path.splitext(os.path.basename(backup_file))[0])
+                ext_version = manifest_data.get("version", "1.0")
+                ext_desc = manifest_data.get("description", "")
+
+                for _, _, files in os.walk(payload_dir):
+                    file_count += len(files)
+                backup_date = datetime.datetime.fromtimestamp(os.path.getmtime(backup_file)).strftime("%Y-%m-%d %H:%M:%S")
+
+                base_stem = os.path.splitext(os.path.basename(backup_file))[0]
+                parts = base_stem.split("_")
+                for p in parts:
+                    if len(p) == 32 and p.isalnum() and p.islower():
+                        ext_id = p
+                        break
 
             file_size = os.path.getsize(backup_file)
             size_fmt = f"{file_size / (1024 * 1024):.2f} MB" if file_size > 1024 * 1024 else f"{file_size / 1024:.1f} KB"
@@ -97,16 +147,16 @@ class RestoreEngine:
             return {
                 "backup_path": backup_file,
                 "filename": os.path.basename(backup_file),
-                "extension_id": manifest_data.get("extension_id", ""),
-                "extension_name": manifest_data.get("extension_name", inner_data.get("name", "Extensão")),
-                "version": manifest_data.get("version", inner_data.get("version", "1.0")),
-                "backup_date": manifest_data.get("backup_date", ""),
-                "file_count": manifest_data.get("file_count", 0),
+                "extension_id": ext_id,
+                "extension_name": ext_name,
+                "version": ext_version,
+                "backup_date": backup_date,
+                "file_count": file_count,
                 "file_size": file_size,
                 "size_formatted": size_fmt,
                 "is_encrypted": is_file_encrypted(backup_file),
                 "is_valid": True,
-                "description": inner_data.get("description", "")
+                "description": ext_desc
             }
         finally:
             if temp_dir and os.path.exists(temp_dir):
@@ -190,27 +240,86 @@ class RestoreEngine:
         rollback_id = None
         try:
             temp_extracted = self.extract_backup_to_temp(backup_file, password)
-            manifest_file = os.path.join(temp_extracted, "manifest.json")
-            if not os.path.exists(manifest_file):
-                return create_error_response("VL-0001", "restore", backup_file, "manifest.json ausente no backup.")
 
-            with open(manifest_file, "r", encoding="utf-8") as mf:
-                manifest_data = json.load(mf)
+            is_crxbackup = os.path.exists(os.path.join(temp_extracted, "extension"))
 
-            ext_id = manifest_data.get("extension_id")
-            ext_name = manifest_data.get("extension_name", ext_id)
-            version = manifest_data.get("version", "1.0")
-            backup_id = manifest_data.get("backup_id", ext_id)
+            if is_crxbackup:
+                manifest_file = os.path.join(temp_extracted, "manifest.json")
+                if not os.path.exists(manifest_file):
+                    return create_error_response("VL-0001", "restore", backup_file, "manifest.json ausente no backup.")
 
-            staging_payload = os.path.join(temp_extracted, "extension")
-            if not os.path.exists(staging_payload):
-                return create_error_response("VL-0003", "restore", backup_file, "Pasta 'extension/' ausente no arquivo.")
+                with open(manifest_file, "r", encoding="utf-8") as mf:
+                    manifest_data = json.load(mf)
 
-            hashes_file = os.path.join(temp_extracted, "hashes", "hashes.json")
-            hashes_map = {}
-            if os.path.exists(hashes_file):
-                with open(hashes_file, "r", encoding="utf-8") as hf:
-                    hashes_map = json.load(hf)
+                ext_id = manifest_data.get("extension_id")
+                ext_name = manifest_data.get("extension_name", ext_id)
+                version = manifest_data.get("version", "1.0")
+                backup_id = manifest_data.get("backup_id", ext_id)
+
+                staging_payload = os.path.join(temp_extracted, "extension")
+                if not os.path.exists(staging_payload):
+                    return create_error_response("VL-0003", "restore", backup_file, "Pasta 'extension/' ausente no arquivo.")
+
+                hashes_file = os.path.join(temp_extracted, "hashes", "hashes.json")
+                hashes_map = {}
+                if os.path.exists(hashes_file):
+                    with open(hashes_file, "r", encoding="utf-8") as hf:
+                        hashes_map = json.load(hf)
+                else:
+                    hashes_map = build_hashes_map_for_dir(staging_payload)
+            else:
+                # Direct extension ZIP layout: find where manifest.json lives
+                manifest_file = os.path.join(temp_extracted, "manifest.json")
+                staging_payload = temp_extracted
+                if not os.path.exists(manifest_file):
+                    for entry in os.listdir(temp_extracted):
+                        sub = os.path.join(temp_extracted, entry)
+                        if os.path.isdir(sub) and os.path.exists(os.path.join(sub, "manifest.json")):
+                            staging_payload = sub
+                            manifest_file = os.path.join(sub, "manifest.json")
+                            break
+
+                if not os.path.exists(manifest_file):
+                    return create_error_response("VL-0001", "restore", backup_file, "manifest.json não encontrado no arquivo ZIP da extensão.")
+
+                with open(manifest_file, "r", encoding="utf-8") as mf:
+                    ext_manifest = json.load(mf)
+
+                ext_name = ext_manifest.get("name", os.path.splitext(os.path.basename(backup_file))[0])
+                version = ext_manifest.get("version", "1.0")
+                backup_id = os.path.splitext(os.path.basename(backup_file))[0]
+
+                # Extract extension ID from filename or match against installed extensions
+                ext_id = None
+                parts = backup_id.split("_")
+                for p in parts:
+                    if len(p) == 32 and p.isalnum() and p.islower():
+                        ext_id = p
+                        break
+
+                if not ext_id:
+                    # Try matching by name in Chrome detector
+                    try:
+                        user_data = custom_user_data_path or get_default_chrome_user_data_path()
+                        detector = ChromeDetector(user_data)
+                        installed_exts = detector.get_installed_extensions(target_profile_id)
+                        matching = next((e for e in installed_exts if e.get("name", "").strip().lower() == ext_name.strip().lower()), None)
+                        if matching:
+                            ext_id = matching.get("extension_id")
+                    except Exception:
+                        pass
+
+                if not ext_id:
+                    ext_id = "".join(c for c in ext_name.lower() if c.isalnum())[:32]
+
+                manifest_data = {
+                    "extension_id": ext_id,
+                    "extension_name": ext_name,
+                    "version": version,
+                    "original_source_dir": None
+                }
+
+                hashes_map = build_hashes_map_for_dir(staging_payload)
 
             # 4. Determine destination path
             if restore_mode in ("unpacked_export", "auto_chrome"):

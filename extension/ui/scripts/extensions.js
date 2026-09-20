@@ -292,7 +292,8 @@ class ExtensionsController {
       });
 
       if (res.success) {
-        window.app.showToast(`Backup concluído: ${res.final_size_formatted} gravados com SHA-256!`, "success");
+        const zipNotice = res.zip_filename ? ` (.zip e .crxbackup gerados)` : ``;
+        window.app.showToast(`Backup concluído: ${res.final_size_formatted} gravados com SHA-256!${zipNotice}`, "success");
         this.loadExtensions(ext.profile_id);
       } else {
         window.app.showErrorModal(res.error);
