@@ -243,7 +243,8 @@
               <span>🔍</span>
               <input type="text" id="backups-search-input" placeholder="Filtrar arquivos de backup...">
             </div>
-            <div style="display: flex; gap: 8px;">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="btn btn-outline" id="btn-import-restore-backup" title="Escolher ficheiro .crxbackup e restaurar diretamente">📥 Restaurar Ficheiro .crxbackup</button>
               <button class="btn btn-secondary" id="btn-find-custom-backups">📂 Encontrar Backups (Unidade Externa)</button>
               <button class="btn btn-primary" id="btn-refresh-backups">🔄 Atualizar Catálogo</button>
             </div>
@@ -280,9 +281,74 @@
               <button class="btn btn-secondary btn-sm" id="btn-close-chrome-controlled" style="font-size: 11px;">Fechar Chrome de Forma Controlada</button>
             </div>
 
-            <div class="form-group">
-              <label for="restore-backup-select">1. Selecionar Arquivo de Backup (.crxbackup):</label>
-              <select id="restore-backup-select" class="form-control" style="font-weight: 600;"></select>
+            <!-- Source Selection: Catalog vs Custom .crxbackup File -->
+            <div class="restore-source-selector" style="margin-bottom: 20px;">
+              <label style="font-weight: 700; margin-bottom: 10px; display: block; font-size: 13.5px; color: var(--text-primary);">
+                1. Selecionar Arquivo de Backup (.crxbackup):
+              </label>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                <button type="button" class="btn btn-source-tab active" id="btn-source-catalog">
+                  <div style="font-weight: 700; font-size: 13px; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                    <span>💾</span> Catálogo Local de Backups
+                  </div>
+                  <small style="color: var(--text-muted); font-size: 11px; margin-top: 2px;">Backups detetados na pasta padrão</small>
+                </button>
+
+                <button type="button" class="btn btn-source-tab" id="btn-source-custom-file">
+                  <div style="font-weight: 700; font-size: 13px; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                    <span>📂</span> Ficheiro .crxbackup do Computador
+                  </div>
+                  <small style="color: var(--text-muted); font-size: 11px; margin-top: 2px;">Restaurar qualquer ficheiro .crxbackup do PC</small>
+                </button>
+              </div>
+
+              <!-- Option A: Dropdown from Catalog -->
+              <div id="source-catalog-container" class="form-group">
+                <label for="restore-backup-select" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Selecione o backup do catálogo:</label>
+                <select id="restore-backup-select" class="form-control" style="font-weight: 600;"></select>
+              </div>
+
+              <!-- Option B: Custom File Picker & Drag and Drop -->
+              <div id="source-custom-file-container" style="display: none; margin-top: 10px;">
+                <div id="crxbackup-dropzone" class="crxbackup-dropzone">
+                  <div style="font-size: 30px; margin-bottom: 6px;">📦</div>
+                  <div style="font-weight: 700; font-size: 13.5px; color: var(--text-primary); margin-bottom: 4px;">
+                    Arraste e largue aqui o seu ficheiro .crxbackup
+                  </div>
+                  <div style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 12px;">
+                    ou selecione diretamente no seu computador
+                  </div>
+                  <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-browse-crxbackup-native">
+                      📂 Procurar no Computador (Janela Nativa)
+                    </button>
+                    <label class="btn btn-secondary btn-sm" style="margin: 0; cursor: pointer;">
+                      📁 Selecionar do Disco
+                      <input type="file" id="crxbackup-file-input" accept=".crxbackup,.zip" style="display: none;">
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Selected Custom File Card -->
+                <div id="selected-crxbackup-card" style="display: none; margin-top: 12px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px 16px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <span style="font-size: 22px;">🧩</span>
+                      <div>
+                        <div id="custom-file-ext-name" style="font-weight: 700; font-size: 13px; color: var(--text-primary);"></div>
+                        <div style="font-size: 11px; color: var(--text-muted);">
+                          <span id="custom-file-ext-ver"></span> &bull; <span id="custom-file-size"></span> &bull; <span id="custom-file-files"></span>
+                        </div>
+                      </div>
+                    </div>
+                    <span class="badge badge-success" id="custom-file-valid-badge">100% Válido</span>
+                  </div>
+                  <div style="margin-top: 8px; font-size: 11px; color: var(--text-secondary); word-break: break-all;">
+                    <strong>Caminho:</strong> <code id="custom-file-path-display" style="background: rgba(0,0,0,0.2); padding: 2px 5px; border-radius: 3px;"></code>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="form-group">
@@ -293,8 +359,9 @@
             <div class="form-group">
               <label for="restore-mode-select">3. Método de Restauro:</label>
               <select id="restore-mode-select" class="form-control">
-                <option value="direct_profile">Restauro Direto Seguro (No local original da extensão, protegido por Ponto de Rollback Automático)</option>
-                <option value="unpacked_export">Exportar como Extensão Descompactada (Nova pasta em Documentos / Modo de Programador)</option>
+                <option value="auto_chrome">Restauro Completo no Chrome (Registar nas Extensões do Google Chrome + Extrair Ficheiros)</option>
+                <option value="unpacked_export">Exportar como Extensão Descompactada (Pasta em Documentos / Modo de Programador)</option>
+                <option value="direct_profile">Restauro Físico no Perfil (Apenas se a extensão já estiver presente no perfil)</option>
               </select>
               <small style="color: var(--text-muted); display: block; margin-top: 4px;">
                 Proteção Ativa: Ambas as opções incluem salvaguarda prévia automática (Ponto de Rollback) e validação de 100% dos hashes SHA-256.
@@ -326,18 +393,24 @@
                   <div><strong>Ficheiros:</strong> <span id="restore-report-files"></span></div>
                   <div><strong>Ponto de Rollback:</strong> <span id="restore-report-rollback"></span></div>
                 </div>
+                <div id="restore-report-chrome-reg-badge" style="display: none; margin-top: 4px; font-size: 12px; color: var(--success); font-weight: 600;">
+                  ✓ Registada nas Extensões do Google Chrome (Reinicie ou abra o Chrome para ativar automaticamente)
+                </div>
               </div>
 
               <!-- Action Buttons Bar -->
               <div style="margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px;">
+                <button type="button" class="btn btn-success btn-sm" id="btn-restore-launch-chrome" title="Abrir Google Chrome com esta extensão carregada">
+                  ⚡ Abrir Chrome com a Extensão
+                </button>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-restore-open-chrome" title="Abrir página de extensões do Chrome (chrome://extensions)">
+                  🚀 Abrir chrome://extensions
+                </button>
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-restore-open-folder" title="Abrir pasta restaurada no Explorador de Ficheiros do Windows">
                   📂 Abrir Pasta no Windows
                 </button>
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-restore-copy-path" title="Copiar caminho completo da pasta para a Área de Transferência">
                   📋 Copiar Caminho
-                </button>
-                <button type="button" class="btn btn-primary btn-sm" id="btn-restore-open-chrome" title="Abrir página de extensões do Chrome (chrome://extensions)">
-                  🚀 Abrir chrome://extensions
                 </button>
               </div>
 

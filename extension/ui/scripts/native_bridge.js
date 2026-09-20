@@ -218,6 +218,22 @@ class NativeBridge {
     }
     return this.send("open_chrome_extensions");
   }
+
+  async openFileDialog() {
+    return this.send("open_file_dialog");
+  }
+
+  async inspectBackupFile(backupPath, password = null) {
+    return this.send("inspect_backup_file", { backup_path: backupPath, password: password });
+  }
+
+  async importBackupFile(filename, base64Data) {
+    return this.send("import_backup_file", { filename: filename, base64_data: base64Data });
+  }
+
+  async launchChromeWithExtension(folderPath) {
+    return this.send("launch_chrome_with_extension", { folder_path: folderPath });
+  }
 }
 
 // Global singleton

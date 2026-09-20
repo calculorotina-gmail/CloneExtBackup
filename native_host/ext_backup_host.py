@@ -558,6 +558,78 @@ class HostCommandHandler:
             logger.error(f"Erro ao abrir chrome://extensions: {e}", "SYSTEM")
             return {"success": False, "error": str(e)}
 
+    def handle_open_file_dialog(self, payload: dict) -> dict:
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.wm_attributes("-topmost", 1)
+            file_path = filedialog.askopenfilename(
+                title="Selecionar Ficheiro de Backup (.crxbackup)",
+                filetypes=[
+                    ("Chrome Extension Backup", "*.crxbackup"),
+                    ("Ficheiros ZIP", "*.zip"),
+                    ("Todos os Ficheiros", "*.*")
+                ]
+            )
+            root.destroy()
+            if not file_path:
+                return {"success": False, "cancelled": True}
+
+            file_path = os.path.normpath(file_path)
+            return {"success": True, "file_path": file_path}
+        except Exception as e:
+            logger.error(f"Erro ao abrir seletor de ficheiros: {e}", "SYSTEM")
+            return {"success": False, "error": str(e)}
+
+    def handle_inspect_backup_file(self, payload: dict) -> dict:
+        backup_path = payload.get("backup_path")
+        if not backup_path or not os.path.exists(backup_path):
+            return {"success": False, "error": f"Ficheiro de backup não encontrado: {backup_path}"}
+        password = payload.get("password")
+        try:
+            from native_host.core.restore_engine import RestoreEngine
+            engine = RestoreEngine()
+            info = engine.inspect_backup_archive(backup_path, password)
+            return {"success": True, "info": info}
+        except Exception as e:
+            logger.error(f"Erro ao inspecionar backup: {e}", "SYSTEM")
+            return {"success": False, "error": str(e)}
+
+    def handle_import_backup_file(self, payload: dict) -> dict:
+        filename = payload.get("filename")
+        base64_data = payload.get("base64_data")
+        if not filename or not base64_data:
+            return {"success": False, "error": "Nome do ficheiro ou dados base64 ausentes."}
+        try:
+            import base64
+            from native_host.core.restore_engine import RestoreEngine, DEFAULT_BACKUP_DIR
+            target_path = os.path.join(DEFAULT_BACKUP_DIR, filename)
+            os.makedirs(DEFAULT_BACKUP_DIR, exist_ok=True)
+            raw_bytes = base64.b64decode(base64_data)
+            with open(target_path, "wb") as f:
+                f.write(raw_bytes)
+            engine = RestoreEngine()
+            info = engine.inspect_backup_archive(target_path)
+            return {"success": True, "file_path": target_path, "info": info}
+        except Exception as e:
+            logger.error(f"Erro ao importar backup: {e}", "SYSTEM")
+            return {"success": False, "error": str(e)}
+
+    def handle_launch_chrome_with_extension(self, payload: dict) -> dict:
+        folder_path = payload.get("folder_path")
+        if not folder_path or not os.path.exists(folder_path):
+            return {"success": False, "error": f"Pasta não encontrada: {folder_path}"}
+        try:
+            import subprocess
+            cmd = f'start chrome.exe --load-extension="{folder_path}" chrome://extensions'
+            subprocess.Popen(["cmd.exe", "/c", cmd])
+            return {"success": True}
+        except Exception as e:
+            logger.error(f"Erro ao iniciar Chrome com extensão: {e}", "SYSTEM")
+            return {"success": False, "error": str(e)}
+
     def dispatch(self, action: str, payload: dict) -> dict:
         action_map = {
             "ping": self.handle_ping,
@@ -587,7 +659,11 @@ class HostCommandHandler:
             "save_schedule": self.handle_save_schedule,
             "check_for_changes": self.handle_check_for_changes,
             "open_folder": self.handle_open_folder,
-            "open_chrome_extensions": self.handle_open_chrome_extensions
+            "open_chrome_extensions": self.handle_open_chrome_extensions,
+            "open_file_dialog": self.handle_open_file_dialog,
+            "inspect_backup_file": self.handle_inspect_backup_file,
+            "import_backup_file": self.handle_import_backup_file,
+            "launch_chrome_with_extension": self.handle_launch_chrome_with_extension
         }
 
         handler = action_map.get(action)

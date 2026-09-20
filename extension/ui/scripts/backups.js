@@ -40,6 +40,23 @@ class BackupsController {
       });
     }
 
+    // Import and restore external backup button
+    const importRestoreBtn = document.getElementById("btn-import-restore-backup");
+    if (importRestoreBtn) {
+      importRestoreBtn.addEventListener("click", async () => {
+        window.app.showToast("A abrir seletor de ficheiros .crxbackup...", "info");
+        try {
+          const res = await window.bridge.openFileDialog();
+          if (res && res.success && res.file_path) {
+            window.app.navigate("restore");
+            await window.restoreController.selectBackupForRestore(res.file_path);
+          }
+        } catch (e) {
+          console.error("Erro ao abrir seletor de ficheiro:", e);
+        }
+      });
+    }
+
     // Table body event delegation
     const tbody = document.getElementById("backups-tbody");
     if (tbody) {

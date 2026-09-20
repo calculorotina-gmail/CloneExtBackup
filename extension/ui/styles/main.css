@@ -855,3 +855,45 @@ body {
   from { transform: translateX(100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
+
+/* Restore Source Tabs & Dropzone */
+.btn-source-tab {
+  padding: 12px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-source-tab:hover {
+  border-color: var(--accent-light);
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.btn-source-tab.active {
+  border: 2px solid var(--accent-light);
+  background: rgba(56, 189, 248, 0.12);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+}
+
+.crxbackup-dropzone {
+  border: 2px dashed var(--accent-light);
+  background: rgba(56, 189, 248, 0.05);
+  border-radius: var(--radius-md);
+  padding: 24px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.crxbackup-dropzone:hover,
+.crxbackup-dropzone.dragover {
+  border-color: var(--accent-primary);
+  background: rgba(56, 189, 248, 0.14);
+  transform: scale(1.01);
+}

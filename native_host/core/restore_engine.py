@@ -68,6 +68,61 @@ class RestoreEngine:
                 except Exception:
                     pass
 
+    def inspect_backup_archive(self, backup_file: str, password: Optional[str] = None) -> Dict[str, Any]:
+        """Inspects and validates a .crxbackup archive without restoring, returning manifest and health data."""
+        val_res = validate_archive_integrity(backup_file, password)
+        if not val_res.get("valid"):
+            raise ValueError(val_res.get("error", "O arquivo de backup falhou na verificação de integridade SHA-256."))
+
+        temp_dir = self.extract_backup_to_temp(backup_file, password)
+        try:
+            manifest_file = os.path.join(temp_dir, "manifest.json")
+            if not os.path.exists(manifest_file):
+                raise FileNotFoundError("manifest.json ausente no arquivo .crxbackup.")
+            with open(manifest_file, "r", encoding="utf-8") as f:
+                manifest_data = json.load(f)
+
+            inner_manifest = os.path.join(temp_dir, "extension", "manifest.json")
+            inner_data = {}
+            if os.path.exists(inner_manifest):
+                try:
+                    with open(inner_manifest, "r", encoding="utf-8") as imf:
+                        inner_data = json.load(imf)
+                except Exception:
+                    pass
+
+            file_size = os.path.getsize(backup_file)
+            size_fmt = f"{file_size / (1024 * 1024):.2f} MB" if file_size > 1024 * 1024 else f"{file_size / 1024:.1f} KB"
+
+            return {
+                "backup_path": backup_file,
+                "filename": os.path.basename(backup_file),
+                "extension_id": manifest_data.get("extension_id", ""),
+                "extension_name": manifest_data.get("extension_name", inner_data.get("name", "Extensão")),
+                "version": manifest_data.get("version", inner_data.get("version", "1.0")),
+                "backup_date": manifest_data.get("backup_date", ""),
+                "file_count": manifest_data.get("file_count", 0),
+                "file_size": file_size,
+                "size_formatted": size_fmt,
+                "is_encrypted": is_file_encrypted(backup_file),
+                "is_valid": True,
+                "description": inner_data.get("description", "")
+            }
+        finally:
+            if temp_dir and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def register_chrome_external_extension(self, ext_id: str) -> bool:
+        """Registers extension in HKCU\\Software\\Google\\Chrome\\Extensions for automatic Chrome installation."""
+        try:
+            import winreg
+            key_path = rf"Software\Google\Chrome\Extensions\{ext_id}"
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+                winreg.SetValueEx(key, "update_url", 0, winreg.REG_SZ, "https://clients2.google.com/service/update2/crx")
+            logger.info(f"Extensão {ext_id} registada em HKCU\\Software\\Google\\Chrome\\Extensions com sucesso.", "RESTORE")
+            return True
+        except Exception as e:
+            logger.warn(f"Não foi possível registar extensão no Registo do Windows: {e}", "RESTORE")
     def create_pre_restore_rollback_point(self, current_ext_path: str, backup_id: str) -> Optional[str]:
         """
         Creates a full safety snapshot of the currently installed extension
@@ -158,7 +213,7 @@ class RestoreEngine:
                     hashes_map = json.load(hf)
 
             # 4. Determine destination path
-            if restore_mode == "unpacked_export":
+            if restore_mode in ("unpacked_export", "auto_chrome"):
                 base_export = custom_export_dir or os.path.join(
                     os.path.expanduser("~"), "Documents", "ChromeExtensionsRestored"
                 )
@@ -179,12 +234,17 @@ class RestoreEngine:
 
                 if not target_dest:
                     orig_dir = manifest_data.get("original_source_dir")
-                    if orig_dir and os.path.isabs(orig_dir):
+                    if orig_dir and os.path.isabs(orig_dir) and ("AppData" not in orig_dir or os.path.exists(orig_dir)):
                         target_dest = orig_dir
 
                 if not target_dest:
-                    version_dirname = f"{version}_0"
-                    target_dest = os.path.join(user_data, target_profile_id, "Extensions", ext_id, version_dirname)
+                    # Extension is not currently active in Chrome.
+                    # Never write to User Data\...\Extensions where Chrome ignores/blocks it!
+                    # Write to Documents\ChromeExtensionsRestored instead.
+                    base_export = custom_export_dir or os.path.join(
+                        os.path.expanduser("~"), "Documents", "ChromeExtensionsRestored"
+                    )
+                    target_dest = os.path.join(base_export, f"{ext_name}_{ext_id}_v{version}")
 
                 destination_path = target_dest
 
@@ -221,6 +281,11 @@ class RestoreEngine:
             elapsed = round(time.time() - op_start, 2)
             logger.info(f"Restauro concluído com sucesso em {elapsed}s no caminho: {destination_path}", "RESTORE")
 
+            # Automatic registration in Chrome External Extensions registry (HKCU\Software\Google\Chrome\Extensions)
+            chrome_registered = False
+            if ext_id and len(ext_id) == 32 and ext_id.isalpha() and ext_id.islower():
+                chrome_registered = self.register_chrome_external_extension(ext_id)
+
             # Limitations transparency note
             limitations_notice = (
                 "NOTA TÉCNICA IMPORTANTE: Os ficheiros locais da extensão foram restaurados com 100% de integridade. "
@@ -239,6 +304,7 @@ class RestoreEngine:
                 "copied_files": copied_count,
                 "duration_seconds": elapsed,
                 "rollback_id": rollback_id,
+                "chrome_registered": chrome_registered,
                 "integrity_status": "Válido (100% hashes verificados)",
                 "technical_notice": limitations_notice,
                 "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")

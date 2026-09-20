@@ -32,7 +32,7 @@ if ($manifest.allowed_origins -notcontains $origin) {
 }
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -Path $ManifestPath -Encoding UTF8
 
-Write-Host "[3/3] A registar no Registo do Windows (Chrome e Edge)..." -ForegroundColor Yellow
+Write-Host "[3/4] A registar no Registo do Windows (Chrome e Edge)..." -ForegroundColor Yellow
 $regPathChrome = "HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.extbackup.pro"
 if (-not (Test-Path $regPathChrome)) {
     New-Item -Path $regPathChrome -Force | Out-Null
@@ -45,9 +45,23 @@ if (-not (Test-Path $regPathEdge)) {
 }
 Set-ItemProperty -Path $regPathEdge -Name "(Default)" -Value $ManifestPath
 
+Write-Host "[4/4] A registar associação de ficheiros .crxbackup no Windows..." -ForegroundColor Yellow
+$regExt = "HKCU:\Software\Classes\.crxbackup"
+if (-not (Test-Path $regExt)) { New-Item -Path $regExt -Force | Out-Null }
+Set-ItemProperty -Path $regExt -Name "(Default)" -Value "ChromeExtensionBackup.Archive"
+
+$regProg = "HKCU:\Software\Classes\ChromeExtensionBackup.Archive"
+if (-not (Test-Path $regProg)) { New-Item -Path $regProg -Force | Out-Null }
+Set-ItemProperty -Path $regProg -Name "(Default)" -Value "Chrome Extension Backup Archive"
+
+$regCmd = "HKCU:\Software\Classes\ChromeExtensionBackup.Archive\shell\open\command"
+if (-not (Test-Path $regCmd)) { New-Item -Path $regCmd -Force | Out-Null }
+Set-ItemProperty -Path $regCmd -Name "(Default)" -Value "cmd.exe /c start chrome.exe chrome-extension://$ExtensionId/ui/index.html"
+
 Write-Host ""
-Write-Host "[SUCESSO] Native Messaging Host registado com sucesso!" -ForegroundColor Green
-Write-Host "Registo Chrome: $regPathChrome" -ForegroundColor Gray
-Write-Host "Registo Edge:   $regPathEdge" -ForegroundColor Gray
-Write-Host "Manifesto:      $ManifestPath" -ForegroundColor Gray
+Write-Host "[SUCESSO] Native Messaging Host e extensão .crxbackup registados com sucesso!" -ForegroundColor Green
+Write-Host "Registo Chrome:      $regPathChrome" -ForegroundColor Gray
+Write-Host "Registo Edge:        $regPathEdge" -ForegroundColor Gray
+Write-Host "Associação Ficheiro: .crxbackup -> Chrome Extension Backup Pro" -ForegroundColor Gray
+Write-Host "Manifesto:           $ManifestPath" -ForegroundColor Gray
 Write-Host ""
